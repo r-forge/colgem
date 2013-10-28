@@ -1,5 +1,13 @@
-#September 16 2013
+#October 28 2013
 # expects F.(t), G.(t), and Y.(t) to be in namespace
+#~ TODO finite size correction for pair (i,j) of lineages at internal node (see written notes): 
+#~	if i transmits and is type k: 
+#~ 		pjk -> pjk * (Yk-1)/Yk
+#~ 		pjl (l\neq k) -> pjl * Yk/(Yk-pjk)
+#~ TODO option to correct for direct ancestor sampling if doing serial samples and there is a 0-branch length
+#~ 	add these terms to the likelihood:
+#~ 		if 0 bl at s_i: \sum_k pik Ak / Yk
+#~ 		else: \sum_k pik (1-Ak/Yk)
 
 require(ape)
 require(deSolve)
@@ -103,7 +111,11 @@ dPiAL <- function(h, y, parms, ...){
 	X1 <- A / .Y
 	X2 <-  (.Y - A ) / .Y
 	
-	dL <- sum( (.F * X1) %*% X1 ) 
+	FklXAk_Yk <- (.F * X1)
+	if(FINITESIZECORRECTIONS){
+		diag(FklXAk_Yk) <- diag(FklXAk_Yk) * .Y / (pmax(.Y,1.01)-1)
+		}
+	dL <- sum( FklXAk_Yk %*% X1 ) 
 	
 	#TODO would be faster to solve m- 1 equations since sum(A) is conserved
 	dA <- c(- as.vector(t(.G) %*% X1) 
@@ -117,7 +129,6 @@ dPiAL <- function(h, y, parms, ...){
 	
 	dPi <-  (t(R) %*% pp)[1:(length(.Y)-1)]
 	
-	
 	return(list( c(dPi, dA, dL) ))
 }
 
@@ -129,8 +140,8 @@ solve.Pi.and.AL <- function(h0, h1, A0, L0, tree){
 	Pi1s <- c()
 	for (i in 1:tree$m){
 		y0 <- c( P0[i,], A0, L0)
-		{out0 <-  ode(y=y0, times=c(h0, h1), func=dPiAL, parms=parameters, method=INTEGRATIONMETHOD ) }
-		Pi1 <- out0[nrow(out0),2:(1 + tree$m-1)]
+		out0 <- ode(y=y0, times=c(h0, h1), func=dPiAL, parms=parameters, method=INTEGRATIONMETHOD ) 
+		Pi1 <- abs(out0[nrow(out0),2:(1 + tree$m-1)])
 		if( sum(Pi1) > 1) {Pi1 <- Pi1 / sum(Pi1)}
 		Pi1s <- rbind(Pi1s, Pi1 )
 	}
@@ -172,7 +183,7 @@ calculate.internal.states <- function(tree){
 		.Y <- Y.(tree$T - h1)
 		S <- exp(-L)
 		
-		#TODO option to return -Inf in this situations: 
+		#TODO option to return -Inf in this situation: 
 		#if (sum(.Y) < length(extantLines) ) S <- 0 
 		
 		for (alpha in newNodes){
@@ -180,14 +191,39 @@ calculate.internal.states <- function(tree){
 			v <- tree$daughters[alpha,2]
 			tree$ustates[u,] <- tree$mstate[u,]
 			tree$ustates[v,] <- tree$mstate[v,]
-			#TODO option for finite size corrections:
-			#TODO finite size corrections for lines not involved in coalescent
-			ratekl <- (.F * tree$ustates[u,]/.Y) %*% (tree$ustates[v,]/.Y) + (.F * tree$ustates[v,]/.Y) %*% (tree$ustates[u,]/.Y)
+			
+			
+			FklXpuk_Yk <- (.F * tree$ustates[u,]/.Y)
+			FklXpvk_Yk <- (.F * tree$ustates[v,]/.Y)
+			# option for finite size corrections:
+			if (FINITESIZECORRECTIONS){
+				diag(FklXpuk_Yk) <- diag(FklXpuk_Yk) * .Y / (pmax(.Y,1.01)-1)
+				diag(FklXpvk_Yk) <- diag(FklXpvk_Yk) * .Y / (pmax(.Y,1.01)-1)
+				#TODO need additional finite size correction: update pvl conditional on state(u)==k
+			}
+			ratekl <- FklXpuk_Yk %*% (tree$ustates[v,]/.Y) + FklXpvk_Yk %*% (tree$ustates[u,]/.Y)
 			
 			tree$lstates[alpha,] <- ratekl / sum(ratekl)
 			tree$mstates[alpha,] <- ratekl / sum(ratekl)
 			tree$coalescentRates[alpha] <- sum(ratekl) 
 			tree$coalescentSurvivalProbability[alpha] <- S
+			
+			# finite size corrections for lines not involved in coalescent
+			if (FINITESIZECORRECTIONS)
+			{
+				p_a <- tree$lstates[alpha,]
+				for (i in extantLines){
+					if (i!=u & i!=v){
+						p_i <- tree$mstates[i,]
+						fterm <- p_i * p_a * (.Y-1)/(.Y-p_a)
+						smat <- t( matrix( rep( p_a * .Y/(.Y-p_i), tree$m), nrow=tree$m) )
+						diag(smat) <- 0
+						sterm <- p_i * rowSums(smat)
+						tree$mstates[i,] <- fterm + sterm
+						tree$mstates[i,] <- tree$mstates[i,] / sum(tree$mstates[i,])
+					}
+				}
+			}
 		}
 		
 		if (length(newNodes) > 0) {L<-0}
@@ -198,13 +234,14 @@ calculate.internal.states <- function(tree){
 
 #############################
 # CALCULATE LIKELIHOOD
-coalescent.log.likelihood <- function(bdt, integrationMethod = 'rk4'){
+coalescent.log.likelihood <- function(bdt, integrationMethod = 'rk4', finiteSizeCorrections=FALSE){
 	# bdt : binaryDatedTree instance
 	INTEGRATIONMETHOD <<- integrationMethod
+	FINITESIZECORRECTIONS <<- finiteSizeCorrections
 	tree <- calculate.internal.states(bdt)
 	i<- (length(tree$sampleTimes)+1):(tree$Nnode + length(tree$tip.label))
 	ll <- sum( log(tree$coalescentRates[i]) ) + sum( log(tree$coalescentSurvivalProbability[i]) )
 	if (is.nan(ll) | is.na(ll) ) ll <- -Inf
-	#return( list( tree, ll))
+	
 	return(ll)
 }
