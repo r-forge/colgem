@@ -1,0 +1,1250 @@
+#LyX 2.0 created this file. For more info see http://www.lyx.org/
+\lyxformat 413
+\begin_document
+\begin_header
+\textclass article
+\use_default_options true
+\begin_modules
+knitr
+\end_modules
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_amsmath 2
+\use_esint 1
+\use_mhchem 1
+\use_mathdots 1
+\cite_engine basic
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Fitting a simple HIV model (rcolgem)
+\end_layout
+
+\begin_layout Author
+Erik M Volz
+\end_layout
+
+\begin_layout Standard
+This vignette will demonstrate fitting a simple deterministic HIV model
+ to a virus genealogy reconstructed from a random sample of 200 patients.
+ The virus genealogy also includes information about the state of patients
+ at the time of sampling.
+ Note that in a real world application, it is not always wise to fit a determini
+stic model to noisy epidemic data collected from a small population.
+ But, as we will see, the coalescent based on a deterministic model actually
+ performs very well in this particular scenario.
+ Furthermore, the coalescent is robust to sampling a large fraction of infection
+s (61% in this scenario).
+ 
+\end_layout
+
+\begin_layout Standard
+People infected with HIV have a period of intensified transmission shortly
+ after infection, which is due, in part, to higher viral loads during this
+ period.
+ We will model this using a 2 stage model.
+ 
+\begin_inset Formula $I_{0}$
+\end_inset
+
+and 
+\begin_inset Formula $I_{1}$
+\end_inset
+
+will denote the number of infected in the first and second stages.
+ The first stage will last 
+\begin_inset Formula $1/\gamma_{0}=1$
+\end_inset
+
+ year on average, and the second stage will last 
+\begin_inset Formula $1/\gamma_{1}=9$
+\end_inset
+
+ years on average, and we will presume that parameters describing the duration
+ of these stages are known.
+ The epidemiological dynamics are described by the following rate equations:
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{align}
+\end_layout
+
+\begin_layout Plain Layout
+
+S & 
+\backslash
+xrightarrow{
+\backslash
+beta_0 I_0 S + 
+\backslash
+beta_1 I_1 S} I_0 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+I_0 &
+\backslash
+xrightarrow{ 
+\backslash
+gamma_0 I_0 } I_1 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+I_1 &
+\backslash
+xrightarrow{ 
+\backslash
+gamma_1 I_1 } 0 
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{align}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The objective of this excercise will be to estimate the transmission rates
+ 
+\begin_inset Formula $\beta_{0}$
+\end_inset
+
+ and 
+\begin_inset Formula $\beta_{1}$
+\end_inset
+
+as well as the prevalence of infection over time.
+ New susceptibles will be born into the population at the rate 
+\begin_inset Formula $Sb=S/100$
+\end_inset
+
+ per year, and we will assume this parameter is known.
+ 
+\end_layout
+
+\begin_layout Standard
+Before we begin, we must satisfy a few dependencies.
+ To use rcolgem: 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<results='hide'>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+require(rcolgem)
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We will also need the following packages:
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<results='hide'>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+require(deSolve) # solves ODEs
+\end_layout
+
+\begin_layout Plain Layout
+
+require(ape)  # for working with phylogenies
+\end_layout
+
+\begin_layout Plain Layout
+
+require(rjson)  # for loading simulation data
+\end_layout
+
+\begin_layout Plain Layout
+
+require(stats4)  # for fitting models by maximum likelihood
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We will use simulated data for this vignette.
+ Data were simulated using MASTER 1.4.1 (
+\begin_inset Flex URL
+status collapsed
+
+\begin_layout Plain Layout
+
+http://tgvaughan.github.io/MASTER/
+\end_layout
+
+\end_inset
+
+).
+ You can find the xml file used to configure the simulation in 
+\begin_inset Quotes eld
+\end_inset
+
+extdata
+\begin_inset Quotes eld
+\end_inset
+
+ folder of your package installation directory.
+ To load the simulated data: 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<results='hide', tidy=FALSE>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+hivSimulationData <- fromJSON(
+\end_layout
+
+\begin_layout Plain Layout
+
+  file= system.file('extdata/HIVModel.json', package = "rcolgem") )
+\end_layout
+
+\begin_layout Plain Layout
+
+tree <- read.tree( system.file('extdata/HIVModel.nwk', package = "rcolgem")
+ )
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Before fitting the model to the tree, let's visualize the data: 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<results='hide',  tidy=FALSE>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+with(hivSimulationData,  
+\end_layout
+
+\begin_layout Plain Layout
+
+{ plot(t, S, 'l', ylim=c(0, max(S)), col='blue', 
+\end_layout
+
+\begin_layout Plain Layout
+
+  main='Number infected, red=stage0, orange=stage1',
+\end_layout
+
+\begin_layout Plain Layout
+
+  xlab='time', ylab='') 
+\end_layout
+
+\begin_layout Plain Layout
+
+lines(t, I0, col='red') 
+\end_layout
+
+\begin_layout Plain Layout
+
+lines(t, I1, col='orange') })
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+And, we can visualize the tree using the ape package: 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<results='hide'>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+plot.phylo(tree, show.tip.label=FALSE)
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+These are the true parameter values:
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+S0 <- 999; # the initial number susceptible
+\end_layout
+
+\begin_layout Plain Layout
+
+sampleTime <- 20; # the last time point in the simulation 
+\end_layout
+
+\begin_layout Plain Layout
+
+beta0 <- .001; #the true transmission rate per person per year for stage
+ 0 infected
+\end_layout
+
+\begin_layout Plain Layout
+
+beta1 <- .0001; #the true transmission rate per person per year for stage
+ 1 infected
+\end_layout
+
+\begin_layout Plain Layout
+
+gamma0 <- 1; # the rate that infected progress from stage 0 to stage 1 per
+ person per year 
+\end_layout
+
+\begin_layout Plain Layout
+
+gamma1 <- 0.1111; # the rate that stage 1 infected progress to death per
+ person per year 
+\end_layout
+
+\begin_layout Plain Layout
+
+b <- .01 # the per capita birth rate of new susceptibles
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Note that the tree contains information about the state of patients at the
+ time of sampling in the tree$tip.label attribute.
+ Patients sampled in stage 0 have a label that ends in 'Y0', and patients
+ sampled in state 1 have a label that ends in 'Y1'.
+ We will use this information when fitting the model, so we need to extract
+ it from the tree.
+ The following code generates a vector of sample states corresponding to
+ each tip in the tree:
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+calcStateFromName <-function(tl){ 	
+\end_layout
+
+\begin_layout Plain Layout
+
+	lentl <- nchar(tl) 	
+\end_layout
+
+\begin_layout Plain Layout
+
+	tailstr <- substr(tl, lentl-1, lentl) 	
+\end_layout
+
+\begin_layout Plain Layout
+
+	if (tailstr == 'I0' ){ return(c(1,0)) } 	
+\end_layout
+
+\begin_layout Plain Layout
+
+	return(c(0,1)) } 
+\end_layout
+
+\begin_layout Plain Layout
+
+sampleStates <- t( sapply(tree$tip.label, calcStateFromName) ) 
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We will also need to know the time of sampling of each patient.
+ In this case, we are working with a 'homochronous' sample-- everyone was
+ sampled at the same point in time at the end of the simulation: 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+sampleTimes <- rep(sampleTime, length(tree$tip.label))
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Now we are ready to create a 'binaryDatedTree' object which extends the
+ ape::phylo class.
+ The binaryDatedTree includes the sample time and state information and
+ also calculates the 'height' of each node- that is, the time in the past
+ of each node in the tree relative to the most recent sample.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+bdt <- binaryDatedTree(tree, sampleTimes, sampleStates)
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Finally, we are ready to define the model to be fitted.
+ The model is described by the following ODEs:
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{align}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+dot{S} &= b S - 
+\backslash
+beta_0 I_0 - 
+\backslash
+beta_1 I_1 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+dot{I_0} &= 
+\backslash
+beta_0 I_0 + 
+\backslash
+beta_1 I_1 - 
+\backslash
+gamma_0 I_0  
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+dot{I_1} &= 
+\backslash
+gamma_0 I_0 - 
+\backslash
+gamma_1 I_1
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{align}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We need to transform this model into a canonical form so that it can be
+ used for coalescent calculations.
+ To do that, we must decompose this model into a set of births (replication
+ of lineages within and between states) and migrations (changes of state).
+ A lineage in this model can occupy two states (
+\begin_inset Formula $I_{0}$
+\end_inset
+
+or 
+\begin_inset Formula $I_{1}$
+\end_inset
+
+) even though there are three equations, so we must tabulate births and
+ migrations between two states.
+ Note that an equivalent way to write the model is
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{align}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+dot{I_0}(t) &= F_{00}(t) + F_{10}(t) - G_{01}(t) - 
+\backslash
+mathrm{deaths}_0(t) 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+dot{I_1}(t) &= F_{11}(t) + F_{01}(t) - G_{10}(t) - 
+\backslash
+mathrm{deaths}_1(t) 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{align}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+where 
+\begin_inset Formula $F(t)$
+\end_inset
+
+ is a 2x2 matrix of birth rates and 
+\begin_inset Formula $G(t)$
+\end_inset
+
+is a 2x2 matrix of migration rates.
+ This decomposition is valid for any epidemiological model with two states.
+ In our HIV model, we have
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{align}
+\end_layout
+
+\begin_layout Plain Layout
+
+F_{00}(t) &= 
+\backslash
+beta_0 I_0 S 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+F_{01}(t) &= 
+\backslash
+beta_1 I_1 S 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+G_{01}(t) &= 
+\backslash
+gamma_0 I_0 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+mathrm{deaths}_1 &= 
+\backslash
+gamma_1 I_1,
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{align}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+with all other elements zero.
+ 
+\end_layout
+
+\begin_layout Standard
+The following R code is a re-statement of the above discussion:
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<tidy=FALSE>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+FofX <- function(X, param) {   
+\end_layout
+
+\begin_layout Plain Layout
+
+	return(  matrix( rbind(
+\end_layout
+
+\begin_layout Plain Layout
+
+		c(X['I0'] * X['S'] * param$beta0, 0), 
+\end_layout
+
+\begin_layout Plain Layout
+
+		c(X['I1'] * X['S'] * param$beta1, 0))
+\end_layout
+
+\begin_layout Plain Layout
+
+, 2,2))  } 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+
+GofX <- function(X, param){   
+\end_layout
+
+\begin_layout Plain Layout
+
+	return( matrix( rbind(
+\end_layout
+
+\begin_layout Plain Layout
+
+		c(0, X['I0'] * param$gamma0 ), 
+\end_layout
+
+\begin_layout Plain Layout
+
+		c(0, 0))
+\end_layout
+
+\begin_layout Plain Layout
+
+, 2,2 ) ) } 
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+This defines the ODEs in R:
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<tidy=FALSE>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+dX <- function(t, X, param, ...) {  
+\end_layout
+
+\begin_layout Plain Layout
+
+  # X == S, I0, I1
+\end_layout
+
+\begin_layout Plain Layout
+
+  .F <- FofX(X, param) 
+\end_layout
+
+\begin_layout Plain Layout
+
+  .G <- GofX(X, param) 
+\end_layout
+
+\begin_layout Plain Layout
+
+  list(unname(c(  
+\end_layout
+
+\begin_layout Plain Layout
+
+    -sum(.F) + param$b * X['S'],  
+\end_layout
+
+\begin_layout Plain Layout
+
+    sum(.F) - sum(.G),   
+\end_layout
+
+\begin_layout Plain Layout
+
+    sum(.G) - param$gamma1 * X['I1']  ))) } 
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Now we need to define a function to integrate the model equations and calculate
+ the likelihood.
+ The rcolgem package provides the 'coalescent.log.likelihood' function which
+ calculate the log likelihood of a given binaryDatedTree.
+ This function expects several global variables to be defined, namely 'F.',
+ 'G.', and 'Y.'.
+ These are functions of time which respectively represent the matrix of
+ births, migrations, and population size through time, and one must integrate
+ the system of ODEs for a given set of parameters before defining these
+ global variables.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+integrate.model.calculate.minusLogLikelihood <- function(logbeta0, logbeta1)
+ 
+\end_layout
+
+\begin_layout Plain Layout
+
+{ 
+\end_layout
+
+\begin_layout Plain Layout
+
+param <- list(beta0 = unname(exp(logbeta0)), beta1 = unname(exp(logbeta1)),
+ gamma0 = gamma0, gamma1=gamma1, b = b) 
+\end_layout
+
+\begin_layout Plain Layout
+
+X0 <-c(S=S0, I0=1, I1=0) 
+\end_layout
+
+\begin_layout Plain Layout
+
+times <- seq(0, 35, length.out = 100) 
+\end_layout
+
+\begin_layout Plain Layout
+
+tryCatch( {o <- ode(X0, times, dX, param)}, error = function(e) { return(Inf)
+ } ) 
+\end_layout
+
+\begin_layout Plain Layout
+
+S <- approxfun( o[,1], o[,2] ) 
+\end_layout
+
+\begin_layout Plain Layout
+
+Y1 <- approxfun( o[,1], o[,3] ) 
+\end_layout
+
+\begin_layout Plain Layout
+
+Y2 <- approxfun( o[,1], o[,4] ) 
+\end_layout
+
+\begin_layout Plain Layout
+
+Y.
+ <<- function(t) { c(I0 = Y1(t), I1 = Y2(t)) } 
+\end_layout
+
+\begin_layout Plain Layout
+
+F.
+ <<- function(t) { FofX(c(S = S(t), Y.(t)), param) } 
+\end_layout
+
+\begin_layout Plain Layout
+
+G.
+ <<- function(t) { GofX(c(S = S(t), Y.(t)), param) } 
+\end_layout
+
+\begin_layout Plain Layout
+
+return( -coalescent.log.likelihood(bdt) ) 
+\end_layout
+
+\begin_layout Plain Layout
+
+} 
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Note that this function takes two arguments which are the parameters to
+ be estimated.
+ These are log-transformed because the domain of these variables is 
+\begin_inset Formula $(0,\infty)$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+The coalescent.log.likelihood function takes two optional arguments: integrationMe
+thod describes the integration method used by the deSolve package.
+ The default 'rk4' option is fast, but not very accurate.
+ You may find that switching to 'adams' improves performance.
+ 
+\end_layout
+
+\begin_layout Standard
+The finiteSizeCorrections option (default=FALSE), tells the coalescent.log.likelih
+ood function whether to carry out additional adjustments for small population
+ sizes.
+ Setting this option to TRUE will be important for certain applications
+ with very small population sizes (such as near the beginning of an epidemic)
+ and where the number of lineages in the tree is close to the population
+ size.
+ For the HIV example, we find acceptable results with the option set to
+ FALSE.
+ 
+\end_layout
+
+\begin_layout Standard
+Now we can fit the model using the stats4 package.
+ NOTE: this will take a few minutes! 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<cache=TRUE,warning=FALSE,tidy=FALSE>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+fit <- mle(integrate.model.calculate.minusLogLikelihood,
+\end_layout
+
+\begin_layout Plain Layout
+
+ 	   start = list( logbeta0=log(beta0/2),logbeta1=log(beta1*2)), 
+\end_layout
+
+\begin_layout Plain Layout
+
+	   method='Nelder-Mead',
+\end_layout
+
+\begin_layout Plain Layout
+
+	   control=list(maxit=1000 ) ) 
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Let's inspect the output: 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+<<>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+summary(fit)
+\end_layout
+
+\begin_layout Plain Layout
+
+unname( exp(coef(fit))  ) # the untransformed parameter estimates
+\end_layout
+
+\begin_layout Plain Layout
+
+AIC(fit)
+\end_layout
+
+\begin_layout Plain Layout
+
+# bias relative to true values: 
+\end_layout
+
+\begin_layout Plain Layout
+
+unname( c(beta0,beta1) - exp(coef(fit)) ) 
+\end_layout
+
+\begin_layout Plain Layout
+
+@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+%We can also calculate approximate confidence intervals using the approximate
+ standard errors from the 'mle' object.
+ More accurate confidence intervals could be found using the profile(fit)
+ function, but that would take a long time.
+ I recommend using the more robust version of profile in the bbmle package.
+ 
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+%<<>>=
+\end_layout
+
+\begin_layout Plain Layout
+
+%cis <- unname( rbind( 
+\end_layout
+
+\begin_layout Plain Layout
+
+%	exp(coef(fit) - diag( sqrt( vcov(fit) )) * 1.96 ),   
+\end_layout
+
+\begin_layout Plain Layout
+
+%	exp( coef(fit) + diag( sqrt( vcov(fit) )) * 1.96 ) ) )  
+\end_layout
+
+\begin_layout Plain Layout
+
+%colnames(cis) <- c('beta0', 'beta1') 
+\end_layout
+
+\begin_layout Plain Layout
+
+%cis
+\end_layout
+
+\begin_layout Plain Layout
+
+%@
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
