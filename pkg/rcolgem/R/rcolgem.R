@@ -118,7 +118,7 @@ dPiAL <- function(h, y, parms, ...){
 	dL <- sum( FklXAk_Yk %*% X1 ) 
 	
 	#TODO would be faster to solve m- 1 equations since sum(A) is conserved
-	dA <- c(- as.vector(t(.G) %*% X1) 
+	dA <- c(- as.vector(t(.G) %*% X1)  #TODO i think the first two lines are wrong BUG
 	+ as.vector(.G %*% X1)
 	- as.vector( t(.F) %*% X2 ) * X1
 	+ as.vector( .F %*% X1) * X2)
