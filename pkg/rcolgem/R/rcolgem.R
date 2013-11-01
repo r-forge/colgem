@@ -109,7 +109,7 @@ dPiAL <- function(h, y, parms, ...){
 	.Y <- Y.(t) 
 	
 	X1 <- A / .Y
-	X2 <-  (.Y - A ) / .Y
+	X2 <-  pmax( (.Y - A ) / .Y, 0)
 	
 	FklXAk_Yk <- (.F * X1)
 	if(FINITESIZECORRECTIONS){
@@ -118,10 +118,10 @@ dPiAL <- function(h, y, parms, ...){
 	dL <- sum( FklXAk_Yk %*% X1 ) 
 	
 	#TODO would be faster to solve m- 1 equations since sum(A) is conserved
-	dA <- c(- as.vector(t(.G) %*% X1)  #TODO i think the first two lines are wrong BUG
-	+ as.vector(.G %*% X1)
-	- as.vector( t(.F) %*% X2 ) * X1
-	+ as.vector( .F %*% X1) * X2)
+	dA <- c(+ as.vector(.G %*% X1) 
+	        - as.vector(colSums(.G) )* X1
+	        - as.vector( t(.F) %*% X2 ) * X1
+	        + as.vector( .F %*% X1) * X2)
 	
 	R <- t(.G) / .Y + t(.F * X2) / .Y
 	R <- R * (1- diag(length(.Y)))
@@ -215,12 +215,13 @@ calculate.internal.states <- function(tree){
 				for (i in extantLines){
 					if (i!=u & i!=v){
 						p_i <- tree$mstates[i,]
-						fterm <- p_i * p_a * (.Y-1)/(.Y-p_a)
-						smat <- t( matrix( rep( p_a * .Y/(.Y-p_i), tree$m), nrow=tree$m) )
+						fterm <- p_i * p_a * pmax(.Y-1,0)/pmax(.Y-p_a, 1e-9)
+						smat <-  t( matrix( rep( p_a * .Y/pmax(.Y-p_i,1e-9), tree$m), nrow=tree$m) )
 						diag(smat) <- 0
 						sterm <- p_i * rowSums(smat)
 						tree$mstates[i,] <- fterm + sterm
-						tree$mstates[i,] <- tree$mstates[i,] / sum(tree$mstates[i,])
+						if (sum(tree$mstates[i,]) <= 0) { tree$mstates[i,] <- .Y / sum(.Y) } 
+						else{ tree$mstates[i,] <- tree$mstates[i,] / sum(tree$mstates[i,]) }
 					}
 				}
 			}
