@@ -1,0 +1,16 @@
+\documentclass{article}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+\begin{center}
+\Large
+Introduction to {\tt colgem}\\
+\normalsize
+(author list)
+\end{center}
+
+
+
+
+\end{document}
