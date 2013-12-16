@@ -1,9 +1,17 @@
 Package: rcolgem
 Type: Package
-Title: Compute the likelihood of a gene genealogy conditonal on a compartmental demographic history.
+Title: Compute the likelihood of a gene genealogy conditonal on a compartmental
+    demographic history.
 Version: 0.0.1
 Date: 2013-10-09
-Author: Erik M Volz
+Author: {Erik M Volz, Oliver Ratmann}
 Maintainer: Erik M Volz <erik.volz+rcolgem@gmail.com>
-Description: This package provides methods to compute the likelihood of a gene genealogy using coalescent models for populations with complex demographic histories.  A common example of a complex demographic history is the Susceptible-Infected-Recovered model of infectious disease dynamics and variations thereof.  These methods may be used to obtain MLEs of compartmental models.
+Description: This package provides methods to compute the likelihood of a gene
+    genealogy using coalescent models for populations with complex demographic
+    histories.  A common example of a complex demographic history is the
+    Susceptible-Infected-Recovered model of infectious disease dynamics and
+    variations thereof.  These methods may be used to obtain MLEs of
+    compartmental models.
 License: GPL-3
+Collate:
+    'rcolgem.R'

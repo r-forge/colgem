@@ -1,17 +1,9 @@
 			R-Forge SVN README
 
-This file explains the repository structure of your project. A more
-detailed guide to R-Forge is available by 
-Theußl and Zeileis (2010) [1] and the R-Forge Administration and 
-Development Team (2009) [2].
-
-1. Introduction
+1. Installation
 -----------------------------------------------------------------------
-R is free software distributed under a GNU-style copyleft. R-Forge is
-a central platform for the development of R packages, R-related 
-software and further projects. Among many other web-based features it 
-provides facilities for collaborative source code management via 
-Subversion (SVN) [3].
+R CMD build pkg
+R CMD INSTALL c_1.0-0.tar.gz
 
 2. The directory you're in
 -----------------------------------------------------------------------

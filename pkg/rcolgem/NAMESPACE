@@ -1,4 +1,8 @@
-exportPattern("^[[:alpha:]]+")
-
-
-export(binaryDatedTree, coalescent.log.likelihood)
+export(binaryDatedTree)
+export(calculate.cluster.size.moments.from.model)
+export(calculate.cluster.size.moments.from.tree)
+export(coalescent.log.likelihood)
+export(simulatedBinaryDatedTree)
+export(SIMULATIONTIMERESOLUTION)
+import(ape)
+import(deSolve)

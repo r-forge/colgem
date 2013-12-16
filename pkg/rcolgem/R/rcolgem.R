@@ -1,5 +1,8 @@
-#October 28 2013
-# expects F.(t), G.(t), and Y.(t) to be in namespace
+#' this file contains all R functions of the rcolgem package
+#' expects F.(t), G.(t), and Y.(t) to be in namespace
+#' @import ape
+#' @import deSolve
+
 #~ TODO finite size correction for pair (i,j) of lineages at internal node (see written notes): 
 #~	if i transmits and is type k: 
 #~ 		pjk -> pjk * (Yk-1)/Yk
@@ -18,13 +21,14 @@
 #~ TODO test heterochronous samples
 #~ TODO a rare bug : Error in if (sum(tree$mstates[i, ]) <= 0) { : missing value where TRUE/FALSE needed
 
-require(ape)
-require(deSolve)
+#require(ape)
+#require(deSolve)
 
-SIMULATIONTIMERESOLUTION <<- 1e+04
+#' @export
+SIMULATIONTIMERESOLUTION<- 1e+04
 
 #PRELIMINARIES 
-calculate.heights <- function(phylo){
+.calculate.heights <- function(phylo){
 	phylo$maxSampleTime  = phylo$maxSampleTime <- max(phylo$sampleTimes)
 	heights <- rep(0, (phylo$Nnode + length(phylo$tip.label)) )
 	heights[1:length(phylo$sampleTimes)] <- phylo$maxSampleTime - phylo$sampleTimes
@@ -45,14 +49,14 @@ calculate.heights <- function(phylo){
 	return(phylo)
 }
 
-calculate.edgemap <- function(phylo){
+.calculate.edgemap <- function(phylo){
 	inEdgeMap <- rep(-1, length((phylo$Nnode + length(phylo$tip.label))))
 	outEdgeMap <- matrix(-1, (phylo$Nnode + length(phylo$tip.label)), 2)
 	parent <- 1:(phylo$Nnode + length(phylo$tip.label)) 
 	daughters <- matrix(-1, (phylo$Nnode + length(phylo$tip.label)), 2)
 	for (u in 1:(phylo$Nnode + length(phylo$tip.label))){
 		#if (u!=length(phylo$tip.label)+1){ #if u not root
-			tryCatch({ inEdgeMap[u] <- which( phylo$edge[,2]==u ) }, error = function(e) {inEdgeMap[u] <- u} )
+		tryCatch({ inEdgeMap[u] <- which( phylo$edge[,2]==u ) }, error = function(e) {inEdgeMap[u] <- u} )
 		#} else{ 
 		#	inEdgeMap[u] <- u
 		#}
@@ -73,7 +77,8 @@ calculate.edgemap <- function(phylo){
 	return(phylo)
 }
 
-initialize.states <- function(phylo){
+.initialize.states <- function(phylo)
+{
 	phylo$m =m <- dim(phylo$sampleStates)[2]
 	phylo$lstates <- matrix(-1, (phylo$Nnode + length(phylo$tip.label)), m)
 	phylo$mstates <- matrix(-1, (phylo$Nnode + length(phylo$tip.label)), m)
@@ -84,15 +89,19 @@ initialize.states <- function(phylo){
 	return(phylo)
 }
 
-# binaryDatedTree class, includes heights for each node and other helper variables
-binaryDatedTree <- function( x, ...) UseMethod("binaryDatedTree") 
+
+#' Create binary dated tree
+#' binaryDatedTree class, includes heights for each node and other helper variables
+#' @export
+binaryDatedTree <- function( x, ...) UseMethod("binaryDatedTree")
+
 binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 	if (phylo$Nnode != length(phylo$tip.label) - 1 ) { stop('Object class phylo is not a binary tree.') }
 	phylo$sampleTimes <- sampleTimes
 	phylo$sampleStates <- sampleStates
-	phylo <- calculate.heights(phylo)
-	phylo <- calculate.edgemap(phylo)
-	phylo <- initialize.states(phylo)
+	phylo <- .calculate.heights(phylo)
+	phylo <- .calculate.edgemap(phylo)
+	phylo <- .initialize.states(phylo)
 	phylo$coalescentRates <- rep(0, (phylo$Nnode + length(phylo$tip.label)))
 	phylo$coalescentSurvivalProbability <- rep(1, (phylo$Nnode + length(phylo$tip.label)))
 	class(phylo) <- c("binaryDatedTree", "phylo")
@@ -100,15 +109,16 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 }
 
 
-extant.at.height <- function(h, tree){
-{return( which( tree$heights <= h & tree$parentheights > h)  )}
+.extant.at.height <- function(h, tree)
+{
+	return( which( tree$heights <= h & tree$parentheights > h)  )
 }
 
 
 ##########################
 #CALCULATE INTERNAL STATES
 
-dPiAL <- function(h, y, parms, ...){
+.dPiAL <- function(h, y, parms, ...){
 	# conditional on no coalescent
 	p <- y[1:(parms$m-1)]
 	A <- y[(parms$m):(2*parms$m-1)]
@@ -117,58 +127,64 @@ dPiAL <- function(h, y, parms, ...){
 	t <- parms$treeT - h
 	
 	if (USE_DISCRETE_FGY){
-		if (FGY_INDEX < FGY_RESOLUTION &  h > FGY_H_BOUNDARIES[FGY_INDEX])  {FGY_INDEX <<- FGY_INDEX+1 ; return(dPiAL(h, y, parms))}
-		if ( FGY_INDEX > 1 ) { if ( h< FGY_H_BOUNDARIES[FGY_INDEX-1]) { FGY_INDEX <<- FGY_INDEX-1 ; return(dPiAL(h, y, parms))} }
+		if (FGY_INDEX < FGY_RESOLUTION &  h > FGY_H_BOUNDARIES[FGY_INDEX])  {FGY_INDEX <<- FGY_INDEX+1 ; return(.dPiAL(h, y, parms))}
+		if ( FGY_INDEX > 1 ) { if ( h< FGY_H_BOUNDARIES[FGY_INDEX-1]) { FGY_INDEX <<- FGY_INDEX-1 ; return(.dPiAL(h, y, parms))} }
 	}
 	.G <- G.(t) 
 	.F <- F.(t)
 	.Y <- Y.(t) 
-	X1 <- pmax(A / .Y, 0)
-	X2 <-  pmax( (.Y - A ) / .Y, 0)
+	X1 <- pmax(A / .Y, 0); X1[is.infinite(X1)] <- A[is.infinite(X1)]
+	X2 <-  pmax( (.Y - A ) / .Y, 0); X2[is.infinite(X2)] <- A[is.infinite(X2)]
 	
 	FklXAk_Yk <- (.F * X1)
 	if(FINITESIZECORRECTIONS){
 		diag(FklXAk_Yk) <- diag(FklXAk_Yk) * .Y / (pmax(.Y,1.01)-1)
-		}
+	}
 	dL <- sum( FklXAk_Yk %*% X1 )
 	
 	#TODO would be faster to solve m- 1 equations since sum(A) is conserved
 	dA <- c(+ as.vector(.G %*% X1) 
-	        - as.vector(colSums(.G) )* X1
-	        - as.vector( t(.F) %*% X2 ) * X1
-	        + as.vector( .F %*% X1) * X2)
+					- as.vector(colSums(.G) )* X1
+					- as.vector( t(.F) %*% X2 ) * X1
+					+ as.vector( .F %*% X1) * X2)
 	
 	R <- t(.G) / .Y + t(.F * X2) / .Y
 	R <- R * (1- diag(length(.Y)))
 	R <- R  -rowSums(R) * diag(length(.Y))
+	R[is.nan(R)] <- 0
 	
 	dPi <-  (t(R) %*% pp)[1:(length(.Y)-1)]
-	
 	return(list( c(dPi, dA, dL) ))
 }
 
 
-solve.Pi.and.AL <- function(h0, h1, A0, L0, tree){
-	P0 <- diag(tree$m)[,1:(tree$m-1)]
-	if (tree$m <=2) P0 <- t(t(P0))
-	parameters <- list(treeT = tree$maxSampleTime, m = tree$m)
-	Pi1s <- c()
-	for (i in 1:tree$m){
-		y0 <- c( P0[i,], A0, L0)
-			tryCatch({
-			out0 <- ode(y=y0, times=c(h0, h1), func=dPiAL, parms=parameters, method=INTEGRATIONMETHOD ) 
-			}, error = function(e) browser() )
-		Pi1 <- abs(out0[nrow(out0),2:(1 + tree$m-1)])
-		if( sum(Pi1) > 1) {Pi1 <- Pi1 / sum(Pi1)}
-		Pi1s <- rbind(Pi1s, Pi1 )
+.solve.Pi.and.AL <- function(h0, h1, A0, L0, tree)
+{
+	P0 				<- diag(tree$m)[,1:(tree$m-1)]
+	if (tree$m <=2) 
+		P0 			<- t(t(P0))
+	parameters 		<- list(treeT = tree$maxSampleTime, m = tree$m)
+	Pi1s 			<- c()
+	for (i in 1:tree$m)
+	{
+		y0 			<- c( P0[i,], A0, L0)
+		tryCatch({
+					out0 <- ode(y=y0, times=c(h0, h1), func=.dPiAL, parms=parameters, method=INTEGRATIONMETHOD ) 
+				}, error = function(e) browser() )
+		Pi1 		<- abs(out0[nrow(out0),2:(1 + tree$m-1)])
+		if( sum(Pi1) > 1) 
+		{
+			Pi1 	<- Pi1 / sum(Pi1)
+		}
+		Pi1s 		<- rbind(Pi1s, Pi1 )
 	}
-	Pi1s <- cbind(Pi1s, 1 - rowSums(Pi1s))
-	A1 <- out0[nrow(out0), (tree$m + 1):(2*tree$m-1 + 1)]
-	L1 <- out0[nrow(out0), ncol(out0)]
+	Pi1s 			<- cbind(Pi1s, 1 - rowSums(Pi1s))
+	A1 				<- out0[nrow(out0), (tree$m + 1):(2*tree$m-1 + 1)]
+	L1 				<- out0[nrow(out0), ncol(out0)]
 	return ( list(  unname(Pi1s), unname(A1), unname (L1) ) )
 }
 
-calculate.internal.states <- function(tree, maxHeight=0){
+.calculate.internal.states <- function(tree, maxHeight=0){
 	eventTimes <- unique( sort(tree$heights) )
 	tree$maxHeight <- maxHeight
 	if (maxHeight) { 
@@ -179,14 +195,14 @@ calculate.internal.states <- function(tree, maxHeight=0){
 		h0 <- eventTimes[ih]
 		h1 <- eventTimes[ih+1]
 		#get A0, process new samples, calculate lstate for new lines
-		extantLines <- extant.at.height(h0, tree)
+		extantLines <- .extant.at.height(h0, tree)
 		if (length(extantLines) > 1 ){
 			A0 <- colSums(tree$mstates[extantLines,])
 		} else if (length(extantLines)==1){ A0 <- tree$mstates[extantLines,] }
 		else{ browser() }
 		
 		#solve P[i,], nlft, and S=exp(-L)
-		out <- solve.Pi.and.AL(h0, h1, A0, L, tree)
+		out <- .solve.Pi.and.AL(h0, h1, A0, L, tree)
 		P <- out[[1]]
 		A <- out[[2]]
 		L <- out[[3]]
@@ -213,7 +229,6 @@ calculate.internal.states <- function(tree, maxHeight=0){
 			tree$ustates[u,] <- tree$mstate[u,]
 			tree$ustates[v,] <- tree$mstate[v,]
 			
-			
 			FklXpuk_Yk <- (.F * tree$ustates[u,]/.Y)
 			FklXpvk_Yk <- (.F * tree$ustates[v,]/.Y)
 			# option for finite size corrections:
@@ -222,7 +237,11 @@ calculate.internal.states <- function(tree, maxHeight=0){
 				diag(FklXpvk_Yk) <- diag(FklXpvk_Yk) * .Y / (pmax(.Y,1.01)-1)
 				#TODO need additional finite size correction: update pvl conditional on state(u)==k
 			}
-			ratekl <- FklXpuk_Yk %*% (tree$ustates[v,]/.Y) + FklXpvk_Yk %*% (tree$ustates[u,]/.Y)
+			FklXpuk_Yk[is.nan(FklXpuk_Yk)] <- 0
+			FklXpvk_Yk[is.nan(FklXpvk_Yk)] <- 0
+			vk_Yk <- pmin(pmax(tree$ustates[v,]/.Y, 0),1); vk_Yk[is.nan(vk_Yk)] <- 0
+			uk_Yk <- pmin(pmax(tree$ustates[u,]/.Y, 0),1); uk_Yk[is.nan(uk_Yk)] <- 0
+			ratekl <- FklXpuk_Yk %*% vk_Yk + FklXpvk_Yk %*% uk_Yk
 			
 			tree$lstates[alpha,] <- ratekl / sum(ratekl)
 			tree$mstates[alpha,] <- ratekl / sum(ratekl)
@@ -241,6 +260,7 @@ calculate.internal.states <- function(tree, maxHeight=0){
 						diag(smat) <- 0
 						sterm <- p_i * rowSums(smat)
 						tree$mstates[i,] <- fterm + sterm
+						if (sum(is.na(fterm+sterm)) > 0) browser()
 						if (sum(tree$mstates[i,]) <= 0) { tree$mstates[i,] <- .Y / sum(.Y) } 
 						else{ tree$mstates[i,] <- tree$mstates[i,] / sum(tree$mstates[i,]) }
 					}
@@ -255,39 +275,42 @@ calculate.internal.states <- function(tree, maxHeight=0){
 
 
 #############################
-start.discrete.rates <- function(fgyResolution, maxHeight) {
+.start.discrete.rates <- function(fgyResolution, maxHeight) 
+{
 	FGY_RESOLUTION <<- fgyResolution
-		#~ speed up calculation of FGY by discretizing & pre-caching
-		F.bak <<- F.; G.bak <<- G.; Y.bak <<- Y.
-		USE_DISCRETE_FGY <<- TRUE
-		FGY_H_BOUNDARIES <<- seq(0, maxHeight, length.out = fgyResolution) 
-		FGY_H_BOUNDARIES <<- FGY_H_BOUNDARIES + FGY_H_BOUNDARIES[2]/2
-		FGY_INDEX <<- 1 #update in desolve:ode
-		F_DISCRETE <<- lapply( FGY_H_BOUNDARIES, function(h) { F.(maxHeight-h) })
-		G_DISCRETE <<- lapply( FGY_H_BOUNDARIES, function(h) { G.(maxHeight-h) })
-		Y_DISCRETE <<- lapply( FGY_H_BOUNDARIES, function(h) { Y.(maxHeight-h) })
-		F. <<- function(t) { F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
-		G. <<- function(t) { G_DISCRETE[[FGY_INDEX]] }
-		Y. <<- function(t) { Y_DISCRETE[[FGY_INDEX]] }
+	#~ speed up calculation of FGY by discretizing & pre-caching
+	F.bak <<- F.; G.bak <<- G.; Y.bak <<- Y.
+	USE_DISCRETE_FGY <<- TRUE
+	FGY_H_BOUNDARIES <<- seq(0, maxHeight, length.out = fgyResolution) 
+	FGY_H_BOUNDARIES <<- FGY_H_BOUNDARIES + FGY_H_BOUNDARIES[2]/2
+	FGY_INDEX <<- 1 #update in desolve:ode
+	F_DISCRETE <<- lapply( FGY_H_BOUNDARIES, function(h) { F.(maxHeight-h) })
+	G_DISCRETE <<- lapply( FGY_H_BOUNDARIES, function(h) { G.(maxHeight-h) })
+	Y_DISCRETE <<- lapply( FGY_H_BOUNDARIES, function(h) { Y.(maxHeight-h) })
+	F. <<- function(t) { F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
+	G. <<- function(t) { G_DISCRETE[[FGY_INDEX]] }
+	Y. <<- function(t) { Y_DISCRETE[[FGY_INDEX]] }
 }
-end.discrete.rates <- function(){
+
+.end.discrete.rates <- function(){
 	#reset fgy functions
-		F. <<- F.bak
-		G. <<- G.bak
-		Y. <<- Y.bak
+	F. <<- F.bak
+	G. <<- G.bak
+	Y. <<- Y.bak
 }
 #############################
 # CALCULATE LIKELIHOOD
+#' @export
 coalescent.log.likelihood <- function(bdt, integrationMethod = 'rk4', finiteSizeCorrections=TRUE, maxHeight=0, discretizeRates=FALSE, fgyResolution = 100){
-print(paste(date(), 'start likelihood'))
+	print(paste(date(), 'start likelihood'))
 	
-	if (discretizeRates) { start.discrete.rates(fgyResolution, maxHeight=max(bdt$heights) ) }
+	if (discretizeRates) { .start.discrete.rates(fgyResolution, maxHeight=max(bdt$heights) ) }
 	else{ USE_DISCRETE_FGY <<- FALSE }
 	
 	# bdt : binaryDatedTree instance
 	INTEGRATIONMETHOD <<- integrationMethod
 	FINITESIZECORRECTIONS <<- finiteSizeCorrections
-	tree <- calculate.internal.states(bdt, maxHeight=maxHeight)
+	tree <- .calculate.internal.states(bdt, maxHeight=maxHeight)
 	i<- (length(tree$sampleTimes)+1):(tree$Nnode + length(tree$tip.label))
 	if (maxHeight) { 
 		internalHeights <- tree$heights[(length(tree$tip.label)+1):length(tree$heights)]
@@ -296,23 +319,29 @@ print(paste(date(), 'start likelihood'))
 	if (maxHeight) { ll<- tree$Nnode *  ll/length(i)}
 	if (is.nan(ll) | is.na(ll) ) ll <- -Inf
 	
-	if (discretizeRates) { end.discrete.rates()}
-print(paste(date(), 'finish likelihood', ll))
+	if (discretizeRates) { .end.discrete.rates()}
+	print(paste(date(), 'finish likelihood', ll))
 	return(ll)
 }
 
 
-
-#############################
-# SIMULATE COALESCENT TREES
+#' Simulate binary dated tree
+#' @export
 simulatedBinaryDatedTree <- function( x, ...) UseMethod("simulatedBinaryDatedTree")
-simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretizeRates=FALSE, fgyResolution = 100) {
+simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretizeRates=FALSE, fgyResolution = 100) 
+{
 #~ simulates a coalescent tree, assumes F., G. and Y. are defined
 #~ same attributes are defined as binaryDatedTree
 #~ <preliminaries>
 	# NOTE when discretizing rates, this will neglect any changes in rates for t < 0
-	if (discretizeRates) { start.discrete.rates(fgyResolution, maxHeight = max(sampleTimes)) }
-	else{ USE_DISCRETE_FGY <<- FALSE }
+	if (discretizeRates) 
+	{ 
+		.start.discrete.rates(fgyResolution, maxHeight = max(sampleTimes)) 
+	}
+	else
+	{ 
+		USE_DISCRETE_FGY <<- FALSE 
+	}
 	n <- nrow(sampleStates)
 	sampleTimes <- rep( sampleTime, n) 
 	Nnode <-  n-1
@@ -337,7 +366,7 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretiz
 	mstates[1:n,] <- sampleStates
 	ustates[1:n,] <- sampleStates
 #~ </preliminaries>
-
+	
 #~ <survival time to next event>
 	calculate.rates <- function(h, parms){
 		# eliminate diag elements for migration
@@ -369,7 +398,7 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretiz
 		return( list( -theta * (sum(rates$lambdaCoalescent) + sum(rates$lambdaMigration) + sum(rates$lambdaInvisibleTransmission)) ) )
 	}
 #~ </survival time to next event>
-
+	
 #~ <simulate tree>
 #TODO first version will work for homochronous, then adapt for account for mult samp times
 #TODO these trees are still biased; check rate matrices
@@ -388,7 +417,7 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretiz
 		rates <- calculate.rates( h, parms) 
 		parms$rates <- rates
 		lambda <- (sum(rates$lambdaCoalescent) + sum(rates$lambdaMigration) + sum(rates$lambdaInvisibleTransmission))
-		 
+		
 		# solve survival time
 		# NOTE more accurate to interpolate approxfun( thetaTimes, o[,2] ), & invert to find o[o[,2]==r,1]
 		if (discretizeRates){
@@ -397,9 +426,9 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretiz
 				if (FGY_INDEX < FGY_RESOLUTION &  eventTime > FGY_H_BOUNDARIES[FGY_INDEX])  {
 					eventTime <- FGY_H_BOUNDARIES[FGY_INDEX] 
 					FGY_INDEX <<- FGY_INDEX+1 ; 
-				tryCatch({
-					rates <- calculate.rates( eventTime, parms) ; parms$rates <- rates
-				}, error = function(e) browser() )
+					tryCatch({
+								rates <- calculate.rates( eventTime, parms) ; parms$rates <- rates
+							}, error = function(e) browser() )
 					lambda <- (sum(rates$lambdaCoalescent) + sum(rates$lambdaMigration) + sum(rates$lambdaInvisibleTransmission))
 					eventTime <- eventTime + rexp(1, rate=lambda)
 				}
@@ -412,7 +441,7 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretiz
 			if (is.na(eventTimeIndex) ) eventTimes <- thetaTimes[length(thetaTimes)] # NOTE more accurate to continue integration in this case
 			eventTime <- thetaTimes[eventTimeIndex]
 		}
-			
+		
 		# which event? 2m2 possibilities
 		cumulativeRatesVector <- cumsum( c( as.vector(rates$lambdaCoalescent), as.vector(rates$lambdaMigration+rates$lambdaInvisibleTransmission)) )
 		# as.vector unravels matrices by column
@@ -487,21 +516,21 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretiz
 		}
 	}
 #~ </simulate tree>
-if (discretizeRates) { end.discrete.rates()}
+	if (discretizeRates) { .end.discrete.rates()}
 #~ <assemble class>
 	self<- list(edge=edge, edge.length=edge.length, Nnode=Nnode, tip.label=tip.label, heights=heights, parentheights=parentheights, parent=parent, daughters=daughters, lstates=lstates, mstates=mstates, ustates=ustates, m = m, sampleTimes = sampleTimes, sampleStates= sampleStates, maxSampleTime=maxSampleTime, inEdgeMap = inEdgeMap, outEdgeMap=outEdgeMap)
 	class(self) <- c("binaryDatedTree", "phylo")
 #~ </>
-
-
+	
+	
 #~ <reorder edges for compatibility with ape::phylo functions> 
 #~ (ideally ape would not care about the edge order, but actually most functions assume a certain order)
-sampleTimes2 <- sampleTimes; names(sampleTimes2) <- tip.label
-sampleStates2 <- sampleStates; rownames(sampleStates2) <- tip.label
-phylo <- read.tree(text=write.tree(self) )
-sampleTimes2 <- sampleTimes2[phylo$tip.label]; sampleTimes2 <- unname(sampleTimes2)
-sampleStates2 <- sampleStates2[phylo$tip.label,]; sampleStates2 <- unname(sampleStates2)
-binaryDatedTree(phylo, sampleTimes2, sampleStates2)
+	sampleTimes2 <- sampleTimes; names(sampleTimes2) <- tip.label
+	sampleStates2 <- sampleStates; rownames(sampleStates2) <- tip.label
+	phylo <- read.tree(text=write.tree(self) )
+	sampleTimes2 <- sampleTimes2[phylo$tip.label]; sampleTimes2 <- unname(sampleTimes2)
+	sampleStates2 <- sampleStates2[phylo$tip.label,]; sampleStates2 <- unname(sampleStates2)
+	binaryDatedTree(phylo, sampleTimes2, sampleStates2)
 #~ </>
 }
 
@@ -517,20 +546,31 @@ binaryDatedTree(phylo, sampleTimes2, sampleStates2)
 # SUMMARY STATISTIC GENERATOR
 # TODO adapt for heterochronous samples
 #~ m + m2+ m3
+#' Calculate cluster size moments from model
+#' @param sampleTime 
+#' @param sampleStates	
+#' @param maxTime
+#' @param minTime		
+#' @param timeResolution
+#' @param discretizeRates
+#' @param fgyResolution
+#' @param integrationMethod
+#' @export
+#'
 calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates , maxTime=NA, minTime = NA, timeResolution = 50, discretizeRates=FALSE, fgyResolution = 100 , integrationMethod = 'adams')
 {
 # assumes that F, G, Y are defined
-if (discretizeRates) { start.discrete.rates(fgyResolution, maxHeight = max(sampleTimes)) }
-else{ USE_DISCRETE_FGY <<- FALSE }
-INTEGRATIONMETHOD <<- integrationMethod
-
-n <- nrow(sampleStates) 
-m <- ncol(sampleStates)
-sampleTimes <- rep(sampleTime, n)
-if (is.na(maxTime)) maxTime <- sampleTime 
-if (is.na(minTime)) minTime <- 0
-heights <- seq( 0, maxTime-minTime, length.out = timeResolution)
-
+	if (discretizeRates) { .start.discrete.rates(fgyResolution, maxHeight = max(sampleTimes)) }
+	else{ USE_DISCRETE_FGY <<- FALSE }
+	INTEGRATIONMETHOD <<- integrationMethod
+	
+	n <- nrow(sampleStates) 
+	m <- ncol(sampleStates)
+	sampleTimes <- rep(sampleTime, n)
+	if (is.na(maxTime)) maxTime <- sampleTime 
+	if (is.na(minTime)) minTime <- 0
+	heights <- seq( 0, maxTime-minTime, length.out = timeResolution)
+	
 #~ 	#solve first aggregated moment X1
 #~ 	# X_l^j : number type l descended from type j lineages
 #~ 	X1 <- list() # index by tip type, value = heights X ancestorType matrix
@@ -608,26 +648,31 @@ heights <- seq( 0, maxTime-minTime, length.out = timeResolution)
 	for (i in 1:m){ # first tip type
 		for (j in i:m){ #second tip type
 			#if (i!=j){
-				parameters <- list(maxTime = maxTime) 
-				Xij_h0 <- rep(0, m)
-				if (i==j) {Xij_h0[i] <- A0[i]}
-				XiXjXij_h0 <- c( diag(m)[i,] * A0, diag(m)[j,] * A0, Xij_h0) # each X is vector m(ancestor type) X 1
-				o <- ode(y=XiXjXij_h0, times=heights, func=dXiXjXij, parms=parameters, method=INTEGRATIONMETHOD ) 
-				Xij_h <- o[, (1 + 2*m+1) : ncol(o) ] # timeResolution X m(ancestor type)
-				tryCatch( Mij_h[i,j,] <- rowSums( Xij_h   ) / rowSums(A) # timeResolution X 1
-				   , error = function(e) browser() )
-				Mij_h[j,i,] <- Mij_h[i,j,]
-				#browser()
+			parameters <- list(maxTime = maxTime) 
+			Xij_h0 <- rep(0, m)
+			if (i==j) {Xij_h0[i] <- A0[i]}
+			XiXjXij_h0 <- c( diag(m)[i,] * A0, diag(m)[j,] * A0, Xij_h0) # each X is vector m(ancestor type) X 1
+			o <- ode(y=XiXjXij_h0, times=heights, func=dXiXjXij, parms=parameters, method=INTEGRATIONMETHOD ) 
+			Xij_h <- o[, (1 + 2*m+1) : ncol(o) ] # timeResolution X m(ancestor type)
+			tryCatch( Mij_h[i,j,] <- rowSums( Xij_h   ) / rowSums(A) # timeResolution X 1
+					, error = function(e) browser() )
+			Mij_h[j,i,] <- Mij_h[i,j,]
+			#browser()
 			#else{ #
 			#}
 		}
 	}
 	
-	if (discretizeRates) { end.discrete.rates()}
+	if (discretizeRates) { .end.discrete.rates()}
 	list( heights=heights, M= Mij_h, A = A)
 }
 
 
+#' Calculate cluster size moments from tree
+#' @param bdt		binary dated tree
+#' @param heights	vector numeric, heights at which to calculate cluster sizes	
+#' @export
+#'
 calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 {
 # bdt : binaryDatedTree
@@ -653,12 +698,22 @@ calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 		if (length(extant)==0) return(NA)
 		mean( sapply( extant, function(u) calculate.moment(u, i, j) ) ) 
 	}
-	for (h in heights){
-		extant <- extant.at.height(h, bdt) 
-		for (i in 1:m){
-			for (j in i:m){
-			Mij[i,j,h] <- calculate.mean.moment(extant,i,j)
-			Mij[j, i, h] <- Mij[i,j,h]
+	for (ih in 1:length(heights)){
+		h <- heights[ih]
+		extant <- .extant.at.height(h, bdt) 
+		if (length(extant) <=1){
+			for (i in 1:m){
+				for (j in i:m){
+					Mij[i,j,ih] <- Mij[i,j,ih-1]
+					Mij[j,i,ih] <- Mij[i,j,ih]
+				}
+			}
+		} else{
+			for (i in 1:m){
+				for (j in i:m){
+					Mij[i,j,ih] <- calculate.mean.moment(extant,i,j)
+					Mij[j,i,ih] <- Mij[i,j,ih]
+				}
 			}
 		}
 	}
