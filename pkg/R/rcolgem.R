@@ -273,26 +273,26 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 	}
 	return(tree)
 }
-
-
 #############################
 .start.discrete.rates <- function(fgyResolution, maxHeight) 
 {
-	FGY_RESOLUTION <<- fgyResolution
+	FGY_RESOLUTION		<<- fgyResolution
 	#~ speed up calculation of FGY by discretizing & pre-caching
-	F.bak <<- F.; G.bak <<- G.; Y.bak <<- Y.
-	USE_DISCRETE_FGY <<- TRUE
-	FGY_H_BOUNDARIES <<- seq(0, maxHeight, length.out = fgyResolution) 
-	FGY_H_BOUNDARIES <<- FGY_H_BOUNDARIES + FGY_H_BOUNDARIES[2]/2
-	FGY_INDEX <<- 1 #update in desolve:ode
-	F_DISCRETE <<- lapply( FGY_H_BOUNDARIES, function(h) { F.(maxHeight-h) })
-	G_DISCRETE <<- lapply( FGY_H_BOUNDARIES, function(h) { G.(maxHeight-h) })
-	Y_DISCRETE <<- lapply( FGY_H_BOUNDARIES, function(h) { Y.(maxHeight-h) })
-	F. <<- function(t) { F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
-	G. <<- function(t) { G_DISCRETE[[FGY_INDEX]] }
-	Y. <<- function(t) { Y_DISCRETE[[FGY_INDEX]] }
+	F.bak 				<<- F.
+	G.bak 				<<- G.
+	Y.bak 				<<- Y.
+	USE_DISCRETE_FGY 	<<- TRUE
+	FGY_H_BOUNDARIES 	<<- seq(0, maxHeight, length.out = fgyResolution) 
+	FGY_H_BOUNDARIES 	<<- FGY_H_BOUNDARIES + FGY_H_BOUNDARIES[2]/2
+	FGY_INDEX 			<<- 1 #update in desolve:ode
+	F_DISCRETE 			<<- lapply( FGY_H_BOUNDARIES, function(h) { F.(maxHeight-h) })
+	G_DISCRETE 			<<- lapply( FGY_H_BOUNDARIES, function(h) { G.(maxHeight-h) })
+	Y_DISCRETE 			<<- lapply( FGY_H_BOUNDARIES, function(h) { Y.(maxHeight-h) })
+	F. 					<<- function(t) { F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
+	G. 					<<- function(t) { G_DISCRETE[[FGY_INDEX]] }
+	Y. 					<<- function(t) { Y_DISCRETE[[FGY_INDEX]] }
 }
-
+#############################
 .end.discrete.rates <- function(){
 	#reset fgy functions
 	F. <<- F.bak

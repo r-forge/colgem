@@ -184,7 +184,7 @@ colgem.project.moments.for.sdesystem<- function()
 							, lambda = lambda )
 				})
 	}
-	solve.model.set.fgy <- function(parameters, shouldPlot=FALSE)
+	solve.model.set.fgy <- function(parameters, shouldPlot=FALSE, dir.name=NA)
 	{ 
 		FGYPARMS <<- parameters
 		lambdas <- list()
@@ -209,10 +209,11 @@ colgem.project.moments.for.sdesystem<- function()
 			}
 		}
 		F. <<- function(t.) t( sapply(1:m, function(k)  sapply(1:m, function(l) F.interps[[k]][[l]](t.)) ) )
-		if (shouldPlot){
+		if (shouldPlot)
+		{
 			class(o) <- 'deSolve'
 			#X11()
-			pdf( 'clusterSize_stochasticModel_vignette/epidemic.pdf')
+			pdf( paste(dir.name,'epidemic.pdf', sep='/') )
 			plot(o)
 			dev.off()
 		}
@@ -226,7 +227,7 @@ colgem.project.moments.for.sdesystem<- function()
 	
 	
 	# simulate coalescent tree with true parameters 
-	solve.model.set.fgy(parms_truth, shouldPlot=TRUE) 
+	solve.model.set.fgy(parms_truth, shouldPlot=TRUE, dir.name=dir.name) 
 	phi				<- .50 # sample fraction
 	sampleTime 		<- 50
 	Y.sampleTime 	<- Y.(sampleTime)

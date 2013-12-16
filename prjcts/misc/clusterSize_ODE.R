@@ -28,6 +28,8 @@ colgem.project.moments.for.odesystem.comparisonplots <- function(eM, mM)
 
 colgem.project.moments.for.odesystem<- function()
 {
+	require(deSolve)
+	
 	#~ parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 0.775, beta1=0.08, beta2=0.08, S0=2500, alpha = .05) 
 	parms_truth 	<<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, S0=5000, alpha = 4) 
 	FGYPARMS 		<<- parms_truth

@@ -1,6 +1,5 @@
-#! Rscript
-##	if the first line throws an error add the path to your Rscript to .profile,
-##	eg export PATH=/Library/Frameworks/R.framework/Versions/2.15/Resour\ces/bin:$PATH
+#! /Library/Frameworks/R.framework/Versions/2.15/Resources/bin/Rscript
+##	the first line must be the absolute path to Rscript - need to set manually
 ###############################################################################
 #
 #
@@ -8,17 +7,27 @@
 # file: startme.R
 #
 # usage from R:
-#> setwd("/Users/Oliver/workspace_sandbox/colgem/prjcts")
-#> source("startme.R")
+#	> setwd("/Users/Oliver/workspace_sandbox/colgem/prjcts")
+#	> source("startme.R")
 # usage from bash:
 #> startme.R 
+#
+#	README:	
+#	the script DO NOT currently work for some reason from the command line, and only work when started in R.
+#	TODO	Erik, the problem might be related to the usage of global functions. 
+#			It might be good to fix this.
+#	SO:
+#	open an R window
+#	type setwd("YOURPATH/colgem/prjcts")
+#	type source("startme.R")
+#	copy and paste the script functions, eg 'colgem.project.moments.for.sdesystem'
 #
 ###############################################################################
 #	set these as needed
 CODE.HOME	<<- "/Users/Oliver/workspace_sandbox/colgem"
 HOME		<<- "/Users/Oliver/workspace_sandbox/colgem/prjcts"
 default.fun	<- "colgem.project.moments.for.odesystem"
-#default.fun	<- "colgem.project.moments.for.sdesystem"
+default.fun	<- "colgem.project.moments.for.sdesystem"
 
 
 
