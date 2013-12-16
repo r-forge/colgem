@@ -2,6 +2,7 @@
 #' expects F.(t), G.(t), and Y.(t) to be in namespace
 #' @import ape
 #' @import deSolve
+#' @import pomp
 
 #~ TODO finite size correction for pair (i,j) of lineages at internal node (see written notes): 
 #~	if i transmits and is type k: 
