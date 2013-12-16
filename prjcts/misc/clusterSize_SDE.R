@@ -137,7 +137,7 @@ colgem.project.moments.for.sdesystem<- function()
 	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
 	
 	#~ parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 0.775, beta1=0.08, beta2=0.08, S0=2500, alpha = .05) 
-	parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4) 
+	parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4, m=3) 
 	FGYPARMS <<- parms_truth
 	INFECTEDNAMES <<- c('I0', 'I1', 'I2')
 	
@@ -201,14 +201,14 @@ colgem.project.moments.for.sdesystem<- function()
 		x.interp <<- function(t) { sapply(x.interps, function(interp) interp(t) ) }  
 		Y. <<- function(t) x.interp(t)[INFECTEDNAMES]
 		F.interps <-  list()
-		for (k in 1:m){				#TODO not defined 
+		for (k in 1:parameters$m){				#TODO not defined 
 			F.interps[[k]] <- list()
-			for (l in 1:m){
+			for (l in 1:parameters$m){
 				lambdaskl <- sapply(2:length(times), function(itime) lambdas[[itime]][k,l])
 				F.interps[[k]][[l]] <- approxfun( times[1:(length(times)-1)], lambdaskl/timestep, method='constant', rule=2)
 			}
 		}
-		F. <<- function(t.) t( sapply(1:m, function(k)  sapply(1:m, function(l) F.interps[[k]][[l]](t.)) ) )
+		F. <<- function(t.) t( sapply(1:m, function(k)  sapply(1:parameters$m, function(l) F.interps[[k]][[l]](t.)) ) )
 		if (shouldPlot)
 		{
 			class(o) <- 'deSolve'
@@ -231,10 +231,11 @@ colgem.project.moments.for.sdesystem<- function()
 	phi				<- .50 # sample fraction
 	sampleTime 		<- 50
 	Y.sampleTime 	<- Y.(sampleTime)
-	stateIndices 	<- rep( 1:3, round( phi * Y.sampleTime ) ) # sample each of three states in proportion to size
+	m				<- 3
+	stateIndices 	<- rep( 1:m, round( phi * Y.sampleTime ) ) # sample each of three states in proportion to size
 	n 				<- length(stateIndices)
 	sampleTimes 	<- rep(sampleTime, n)
-	sampleStates 	<- diag(3)[stateIndices,]
+	sampleStates 	<- diag(m)[stateIndices,]
 	coalescentTree_time <- system.time({
 				bdt <- simulatedBinaryDatedTree(sampleTime, sampleStates, discretizeRates=TRUE) 
 			})
