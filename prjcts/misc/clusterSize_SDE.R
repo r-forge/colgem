@@ -23,18 +23,20 @@ colgem.project.moments.for.sdesystem.comparison.plots <- function(eM, mM)
 	ltt.lines(bdt) 
 }
 
-colgem.project.moments.for.sdesystem.comparison.plots2 <- function(eM, nsims,parms=parms_truth)
+colgem.project.moments.for.sdesystem.comparison.plots2 <- function(eM, nsims, solve.model.set.fgy, parms)
 {
 	mM <- list()
-	for (isim in 1:nsims){
-		mM_time <- system.time({  modelMoments = mM_i <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+	for (isim in 1:nsims)
+	{
+		mM_time<- system.time({  
+					modelMoments = mM_i <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
 				})
 	}
-	mM <- lapply(1:nsims, function(isim) {
+	mM <- lapply(1:nsims, function(isim) 
+			{
 				solve.model.set.fgy(parms, shouldPlot=FALSE) ;
 				calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4');
-			}
-	)
+			})
 	X11()
 	par(mfrow=c(4,3))
 	for (i in 1:3){
@@ -56,18 +58,20 @@ colgem.project.moments.for.sdesystem.comparison.plots2 <- function(eM, nsims,par
 	}
 }
 
-colgem.project.moments.for.sdesystem.comparison.plots3<- function(eM, nsims, dir.name, parms=parms_truth)
+colgem.project.moments.for.sdesystem.comparison.plots3<- function(eM, nsims, solve.model.set.fgy, dir.name, parms)
 { # deltas
 	mM <- list()
-	for (isim in 1:nsims){
-		mM_time <- system.time({  modelMoments = mM_i <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+	for (isim in 1:nsims)
+	{
+		mM_time <- system.time({  
+					modelMoments = mM_i <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
 				})
 	}
-	mM <- lapply(1:nsims, function(isim) {
+	mM <- lapply(1:nsims, function(isim) 
+			{
 				solve.model.set.fgy(parms, shouldPlot=FALSE) ;
 				calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4');
-			}
-	)
+			})
 	#X11()
 	pdf( paste(dir.name,'delta_Mij.pdf', sep='/') )
 	par(mfrow=c(3,3))
@@ -137,10 +141,11 @@ colgem.project.moments.for.sdesystem<- function()
 	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
 	
 	#~ parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 0.775, beta1=0.08, beta2=0.08, S0=2500, alpha = .05) 
-	parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4, m=3) 
-	FGYPARMS <<- parms_truth
-	INFECTEDNAMES <<- c('I0', 'I1', 'I2')
-	
+	parms_truth 	<<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4, m=3) 
+	FGYPARMS 		<<- parms_truth
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+	timestep		<- .1
+	times 			<- seq(0, 50, by=timestep)
 	################################################
 	#
 	#	define F G solve.model.set.fgy that are assumed in rcolgem.R
@@ -163,57 +168,59 @@ colgem.project.moments.for.sdesystem<- function()
 		g[2,3] <- FGYPARMS$gamma1 * x['I1']
 		g
 	}	
-	#~ solve using discrete euler method
-	timestep	<- .1
-	times 		<- seq(0, 50, by=timestep)	
-	step.x 		<- function(t, x, parms, ...) 
+	#~ solve using discrete euler method	
+	step.x 		<- function(t, x, timestep, parms ) 
 	{
 		with(parms, {
-					lambda <-  F.skeleton(t, x = x)
-					lambdaTimestep <- lambda * timestep
-					sumlambda <- sum(lambda) 
-					sumlambdaTimestep <- sum(lambdaTimestep) 
-					rsumlambda <- abs( sumlambda*timestep + sqrt(sumlambda) * rnorm(1, mean=0, sd=sqrt(timestep)) )
-					lambda <- lambdaTimestep * rsumlambda/sumlambdaTimestep
-					N <- sum(x)
+					lambda 				<- F.skeleton(t, x = x)
+					lambdaTimestep 		<- lambda * timestep
+					sumlambda 			<- sum(lambda) 
+					sumlambdaTimestep 	<- sum(lambdaTimestep) 
+					rsumlambda 			<- abs( sumlambda*timestep + sqrt(sumlambda) * rnorm(1, mean=0, sd=sqrt(timestep)) )
+					lambda 				<- lambdaTimestep * rsumlambda/sumlambdaTimestep
+					N 					<- sum(x)
 					list( x = x + c(
 									S = -rsumlambda + timestep*b * N - timestep * mu * x['S'], 
 									I0 = rsumlambda - timestep * (mu+gamma0)*x['I0'],
 									I1 = timestep*gamma0*x['I0'] - timestep*(mu+gamma1)*x['I1'],
-									I2 = timestep*gamma1*x['I1'] - timestep*(mu+gamma2)*x['I2']) 
-							, lambda = lambda )
+									I2 = timestep*gamma1*x['I1'] - timestep*(mu+gamma2)*x['I2']), 
+							lambda = lambda )
 				})
 	}
-	solve.model.set.fgy <- function(parameters, shouldPlot=FALSE, dir.name=NA)
+	solve.model.set.fgy <- function(parameters, times, timestep, dir.name, shouldPlot=FALSE)
 	{ 
-		FGYPARMS <<- parameters
-		lambdas <- list()
-		x <-  c(S = parameters$S_0, I0=parameters$I0_0, I1=parameters$I1_0, I2=parameters$I2_0)
-		o <- c(0, x)
-		for (itimes in 2:length(times)){
-			t <- times[itimes]
-			x_lambda <- step.x( t, x, parameters)
-			x <- x_lambda[['x']]
-			lambdas[[itimes]] <- x_lambda[['lambda']]
-			o<- rbind(o, c(t, x))
+		FGYPARMS	<<- parameters
+		lambdas 	<- list()
+		x 			<-  c(S = parameters$S_0, I0=parameters$I0_0, I1=parameters$I1_0, I2=parameters$I2_0)		
+		m			<- 3
+		o 			<- c(0, x)
+		for (itimes in 2:length(times))
+		{
+			t 					<- times[itimes]
+			x_lambda 			<- step.x( t, x, timestep, parameters)
+			x 					<- x_lambda[['x']]
+			lambdas[[itimes]] 	<- x_lambda[['lambda']]
+			o					<- rbind(o, c(t, x))
 		}
-		x.interps<-  sapply( names(x), function(n) approxfun(o[,1], o[,n], yleft=o[1,n], yright=o[nrow(o),n]) )
-		x.interp <<- function(t) { sapply(x.interps, function(interp) interp(t) ) }  
-		Y. <<- function(t) x.interp(t)[INFECTEDNAMES]
-		F.interps <-  list()
-		for (k in 1:parameters$m){				#TODO not defined 
-			F.interps[[k]] <- list()
-			for (l in 1:parameters$m){
-				lambdaskl <- sapply(2:length(times), function(itime) lambdas[[itime]][k,l])
+		x.interps	<-  sapply( names(x), function(n) approxfun(o[,1], o[,n], yleft=o[1,n], yright=o[nrow(o),n]) )
+		x.interp 	<<- function(t) { sapply(x.interps, function(interp) interp(t) ) }  
+		Y. 			<<- function(t) x.interp(t)[INFECTEDNAMES]
+		F.interps 	<-  list()
+		for (k in 1:parameters$m)
+		{ 
+			F.interps[[k]] 			<- list()
+			for (l in 1:parameters$m)
+			{
+				lambdaskl 			<- sapply(2:length(times), function(itime) lambdas[[itime]][k,l])
 				F.interps[[k]][[l]] <- approxfun( times[1:(length(times)-1)], lambdaskl/timestep, method='constant', rule=2)
 			}
 		}
-		F. <<- function(t.) t( sapply(1:m, function(k)  sapply(1:parameters$m, function(l) F.interps[[k]][[l]](t.)) ) )
+		F. 			<<- function(t.) t( sapply(1:m, function(k)  sapply(1:parameters$m, function(l) F.interps[[k]][[l]](t.)) ) )
 		if (shouldPlot)
 		{
 			class(o) <- 'deSolve'
 			#X11()
-			pdf( paste(dir.name,'epidemic.pdf', sep='/') )
+			pdf( file= paste(dir.name,'epidemic.pdf', sep='/'), 4, 4 )
 			plot(o)
 			dev.off()
 		}
@@ -227,7 +234,7 @@ colgem.project.moments.for.sdesystem<- function()
 	
 	
 	# simulate coalescent tree with true parameters 
-	solve.model.set.fgy(parms_truth, shouldPlot=TRUE, dir.name=dir.name) 
+	solve.model.set.fgy(parms_truth, times, timestep, dir.name, shouldPlot=TRUE) 
 	phi				<- .50 # sample fraction
 	sampleTime 		<- 50
 	Y.sampleTime 	<- Y.(sampleTime)
@@ -243,7 +250,7 @@ colgem.project.moments.for.sdesystem<- function()
 	heights 		<- seq(0, 50, length.out=50)
 	empiricalMoments= eM <- calculate.cluster.size.moments.from.tree(bdt, heights)
 	
-	colgem.project.moments.for.sdesystem.comparison.plots3(eM , 20, dir.name)	
+	colgem.project.moments.for.sdesystem.comparison.plots3(eM , 20, solve.model.set.fgy, dir.name, parms_truth)	
 }
 
 
@@ -259,7 +266,7 @@ colgem.project.moments.for.sdesystem<- function()
 #~ parameters$beta1 <- parms_truth$beta1*5
 #~ solve.model.set.fgy(parameters)
 #~ modelMoments = mM <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
-#~ colgem.project.moments.for.sdesystem.comparison.plots(eM, mM) 
+#~ colgem.project.moments.for.sdesystem.comparison.plots(eM, mM, solve.model.set.fgy, parms_truth) 
 
 
 #~ compare computation times with likelihood
