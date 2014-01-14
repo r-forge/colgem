@@ -34,7 +34,7 @@ cg.sde.comparison.plots2 <- function(eM, nsims, solve.model.set.fgy, parms)
 	}
 	mM <- lapply(1:nsims, function(isim) 
 			{
-				solve.model.set.fgy(parms, shouldPlot=FALSE) ;
+				solve.model.set.fgy(parms) ;
 				calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4');
 			})
 	X11()
@@ -69,7 +69,7 @@ cg.sde.modelMoments<- function(parms, eM, sampleTime, sampleStates, solve.model.
 	}
 	mM <- lapply(1:nsims, function(isim) 
 			{
-				solve.model.set.fgy(parms, shouldPlot=FALSE) ;
+				solve.model.set.fgy(parms)
 				calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4');
 			})
 	list(mM=mM, mM.time=mM.time)	
@@ -186,7 +186,7 @@ cg.sde.define<- function()
 							lambda = lambda )
 				})
 	}
-	solve.model.set.fgy<- function(parameters, dir.name=NA, shouldPlot=FALSE)
+	solve.model.set.fgy<- function(parameters, file=NA)
 	{ 
 		FGYPARMS	<<- parameters		
 		lambdas 	<- list()
@@ -217,11 +217,11 @@ cg.sde.define<- function()
 			}
 		}
 		F. 			<<- function(t.) t( sapply(1:parameters$m, function(k)  sapply(1:parameters$m, function(l) F.interps[[k]][[l]](t.)) ) )
-		if(shouldPlot && !is.na(dir.name))
+		if(!is.na(file))
 		{
 			class(o) <- 'deSolve'
-			#X11()
-			pdf( file= paste(dir.name,'epidemic.pdf', sep='/'), 4, 4 )
+			cat(paste("\nplot to file=",file))
+			pdf( file= file, 5, 5 )
 			plot(o)
 			dev.off()
 		}
@@ -231,6 +231,56 @@ cg.sde.define<- function()
 }
 
 cg.sde<- function()
+{
+	#	for a single model simulation, compute nsim=20 moment trajectories. 
+	#	the randomness comes from fluctuations in the state variables S I0 I1 I2 
+	#cg.sde.nsim.mM()
+	
+	cg.sde.varyparam()
+}
+
+cg.sde.varyparam<- function()
+{
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
+	#define model
+	tmp					<- cg.sde.define()
+	F.skeleton			<<- tmp$F.skeleton
+	G.					<<- tmp$G
+	step.x				<<- tmp$step.x
+	solve.model.set.fgy	<- tmp$solve.model.set.fgy
+	
+	#parameter template
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4,
+								times=seq(0, 50, by=.1))	
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+	phi				<- .50 # sample fraction
+	sampleTime 		<- 50
+	nsims			<- 20
+							
+	#bits of the model that are varied
+	gi			<- c(0.25, 0.5, 1, 3) 		#avg duration of I0
+	bf			<- c(2,4,8,16) 				#dampening of beta0
+	parms.vary	<- expand.grid(gi=gi, bf= bf)	
+	parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
+	
+	#plot resulting epidemics 
+	dummy		<- lapply(seq_len(nrow(parms.vary)),function(i)
+			{					  		
+				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]
+				
+				parms_truth		<<- parms.template	
+				FGYPARMS 		<<- parms_truth
+				file			<- paste("varyparam.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".pdf",sep='')
+				file			<- paste(dir.name,file,sep='/')
+				solve.model.set.fgy(parms_truth, file)				
+			})	
+	#with increasing bf: 	smaller depletion of Susc, epidemic more stationary for bf=16  
+	
+}
+
+cg.sde.nsim.mM<- function()
 {	
 	my.mkdir(HOME, 'MOMSDE' )
 	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
@@ -258,8 +308,9 @@ cg.sde<- function()
 	################################################
 	
 	
-	# simulate coalescent tree with true parameters 
-	solve.model.set.fgy(parms_truth, dir.name, shouldPlot=TRUE) 
+	# simulate coalescent tree with true parameters
+	file			<- paste(dir.name,'nsim.mM.epidemic.pdf',sep='/')
+	solve.model.set.fgy(parms_truth, file) 
 	Y.sampleTime 	<- Y.(sampleTime)
 	m				<- 3
 	stateIndices 	<- rep( 1:m, round( phi * Y.sampleTime ) ) # sample each of three states in proportion to size
