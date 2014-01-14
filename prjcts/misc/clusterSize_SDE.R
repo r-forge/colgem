@@ -75,8 +75,9 @@ colgem.project.moments.for.sdesystem.modelMoments<- function(parms, eM, sampleTi
 	list(mM=mM, mM.time=mM.time)	
 }
 
-colgem.project.moments.for.sdesystem.comparison.plots3<- function(eM, mM, dir.name)
+colgem.project.moments.for.sdesystem.comparison.plots3<- function(heights, eM, mM, dir.name)
 { 
+	nsims	<- length(mM)
 	# plot deltas
 	file	<- paste(dir.name,'delta_Mij.pdf', sep='/')
 	cat(paste("plot deltas to file=",file))
@@ -272,7 +273,7 @@ colgem.project.moments.for.sdesystem<- function()
 	tmp				<- colgem.project.moments.for.sdesystem.modelMoments(parms_truth, eM, sampleTime, sampleStates, solve.model.set.fgy, nsims)
 	mM				<- tmp$mM
 	cat(paste("\nplot results"))
-	colgem.project.moments.for.sdesystem.comparison.plots3(eM , mM, dir.name)	
+	colgem.project.moments.for.sdesystem.comparison.plots3(heights, eM , mM, dir.name)	
 }
 
 

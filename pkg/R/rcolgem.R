@@ -563,17 +563,26 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretiz
 #'
 calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates , maxTime=NA, minTime = NA, timeResolution = 50, discretizeRates=FALSE, fgyResolution = 100 , integrationMethod = 'adams')
 {
-# assumes that F, G, Y are defined
-	if (discretizeRates) { .start.discrete.rates(fgyResolution, maxHeight = max(sampleTimes)) }
-	else{ USE_DISCRETE_FGY <<- FALSE }
-	INTEGRATIONMETHOD <<- integrationMethod
-	
-	n <- nrow(sampleStates) 
-	m <- ncol(sampleStates)
+	require(deSolve)
+	# assumes that F, G, Y are defined
+	n 		<- nrow(sampleStates) 
+	m 		<- ncol(sampleStates)
 	sampleTimes <- rep(sampleTime, n)
 	if (is.na(maxTime)) maxTime <- sampleTime 
 	if (is.na(minTime)) minTime <- 0
 	heights <- seq( 0, maxTime-minTime, length.out = timeResolution)
+	
+
+	if (discretizeRates) 
+	{ 
+		.start.discrete.rates(fgyResolution, maxHeight = max(sampleTimes)) 
+	}
+	else
+	{ 
+		USE_DISCRETE_FGY <<- FALSE 
+	}
+	INTEGRATIONMETHOD <<- integrationMethod
+	
 	
 #~ 	#solve first aggregated moment X1
 #~ 	# X_l^j : number type l descended from type j lineages
