@@ -20,14 +20,14 @@
 #	open an R window
 #	type setwd("YOURPATH/colgem/prjcts")
 #	type source("startme.R")
-#	copy and paste the script functions, eg 'colgem.project.moments.for.sdesystem'
+#	copy and paste the script functions, eg 'cg.sde'
 #
 ###############################################################################
 #	set these as needed
 CODE.HOME	<<- "/Users/Oliver/workspace_sandbox/colgem"
 HOME		<<- "/Users/Oliver/workspace_sandbox/colgem/prjcts"
 default.fun	<- "colgem.project.moments.for.odesystem"
-default.fun	<- "colgem.project.moments.for.sdesystem"
+default.fun	<- "cg.sde"
 
 
 
@@ -217,7 +217,7 @@ if(length(args))
 		else default.fun<- switch(tmp[1],
 					MAKE.DOCUMENTATION		 = "my.make.documentation",
 					MOM.ODE					 = "colgem.project.moments.for.odesystem",
-					MOM.SDE					 = "colgem.project.moments.for.sdesystem"
+					MOM.SDE					 = "cg.sde"
 					)
 	}
 	tmp<- na.omit(sapply(args,function(arg)

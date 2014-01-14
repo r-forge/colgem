@@ -5,7 +5,7 @@
 ################################################
 
 # comparison of model and empirical trees
-colgem.project.moments.for.sdesystem.comparison.plots <- function(eM, mM)
+cg.sde.comparison.plots <- function(eM, mM)
 {
 	X11()
 	par(mfrow=c(3,3))
@@ -23,7 +23,7 @@ colgem.project.moments.for.sdesystem.comparison.plots <- function(eM, mM)
 	ltt.lines(bdt) 
 }
 
-colgem.project.moments.for.sdesystem.comparison.plots2 <- function(eM, nsims, solve.model.set.fgy, parms)
+cg.sde.comparison.plots2 <- function(eM, nsims, solve.model.set.fgy, parms)
 {
 	mM <- list()
 	for (isim in 1:nsims)
@@ -58,7 +58,7 @@ colgem.project.moments.for.sdesystem.comparison.plots2 <- function(eM, nsims, so
 	}
 }
 
-colgem.project.moments.for.sdesystem.modelMoments<- function(parms, eM, sampleTime, sampleStates, solve.model.set.fgy, nsims)
+cg.sde.modelMoments<- function(parms, eM, sampleTime, sampleStates, solve.model.set.fgy, nsims)
 {
 	mM <- list()
 	for (isim in 1:nsims)
@@ -75,7 +75,7 @@ colgem.project.moments.for.sdesystem.modelMoments<- function(parms, eM, sampleTi
 	list(mM=mM, mM.time=mM.time)	
 }
 
-colgem.project.moments.for.sdesystem.comparison.plots3<- function(heights, eM, mM, dir.name)
+cg.sde.comparison.plots3<- function(heights, eM, mM, dir.name)
 { 
 	nsims	<- length(mM)
 	# plot deltas
@@ -146,30 +146,11 @@ colgem.project.moments.for.sdesystem.comparison.plots3<- function(heights, eM, m
 	dev.off()
 }
 
-
-colgem.project.moments.for.sdesystem<- function()
+#'	define F G solve.model.set.fgy that are assumed in rcolgem.R
+cg.sde.define<- function()
 {
-	
-	my.mkdir(HOME, 'MOMSDE' )
-	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
-	
-	#~ parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 0.775, beta1=0.08, beta2=0.08, S0=2500, alpha = .05) 
-	parms_truth 	<<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
-								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4,
-								times=seq(0, 50, by=.1)) 
-	FGYPARMS 		<<- parms_truth
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
-	phi				<- .50 # sample fraction
-	sampleTime 		<- 50
-	nsims			<- 20
-	
-	################################################
-	#
-	#	define F G solve.model.set.fgy that are assumed in rcolgem.R
-	#
-	################################################		
 	#~ the 'skeleton' functions are deterministic functions of system state
-	F.skeleton <<- function(t, x = NA)
+	F.skeleton<- function(t, x = NA)
 	{
 		if (is.na(x[1]) )  x <- x.interp(t) 
 		N <- sum(x) 
@@ -177,7 +158,7 @@ colgem.project.moments.for.sdesystem<- function()
 		lambda <- exp(-FGYPARMS$alpha * I/N) * c( FGYPARMS$beta0*x['I0'], FGYPARMS$beta1*x['I1'] , FGYPARMS$beta2*x['I2'])  * x['S']/N
 		unname( cbind( lambda, matrix(0, nrow=3, ncol=2) ) )
 	}
-	G. <<- function(t, x = NA)
+	G<- function(t, x = NA)
 	{
 		if (is.na(x[1]) )  x <- x.interp(t) 
 		g <- matrix(0, nrow=3, ncol=3)
@@ -186,7 +167,7 @@ colgem.project.moments.for.sdesystem<- function()
 		g
 	}	
 	#~ solve using discrete euler method	
-	step.x 		<- function(t, x, parms ) 
+	step.x<- function(t, x, parms ) 
 	{
 		timestep	<- diff(parms$times)[1]
 		with(parms, {
@@ -205,7 +186,7 @@ colgem.project.moments.for.sdesystem<- function()
 							lambda = lambda )
 				})
 	}
-	solve.model.set.fgy <- function(parameters, dir.name=NA, shouldPlot=FALSE)
+	solve.model.set.fgy<- function(parameters, dir.name=NA, shouldPlot=FALSE)
 	{ 
 		FGYPARMS	<<- parameters		
 		lambdas 	<- list()
@@ -246,6 +227,30 @@ colgem.project.moments.for.sdesystem<- function()
 		}
 	}
 	
+	list(F.skeleton=F.skeleton, G=G, step.x=step.x, solve.model.set.fgy=solve.model.set.fgy)
+}
+
+cg.sde<- function()
+{	
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
+	
+	#~ parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 0.775, beta1=0.08, beta2=0.08, S0=2500, alpha = .05) 
+	parms_truth 	<<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4,
+								times=seq(0, 50, by=.1)) 
+	FGYPARMS 		<<- parms_truth
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+	phi				<- .50 # sample fraction
+	sampleTime 		<- 50
+	nsims			<- 20
+	
+	tmp					<- cg.sde.define()
+	F.skeleton			<<- tmp$F.skeleton
+	G.					<<- tmp$G
+	step.x				<<- tmp$step.x
+	solve.model.set.fgy	<- tmp$solve.model.set.fgy
+	
 	################################################
 	#
 	#	start script
@@ -270,10 +275,10 @@ colgem.project.moments.for.sdesystem<- function()
 	cat(paste("\ncalculate moments of observed tree by averaging over lineages; tip states 0/1"))
 	empiricalMoments= eM <- calculate.cluster.size.moments.from.tree(bdt, heights)
 	cat(paste("\ncalculate moments under model"))
-	tmp				<- colgem.project.moments.for.sdesystem.modelMoments(parms_truth, eM, sampleTime, sampleStates, solve.model.set.fgy, nsims)
+	tmp				<- cg.sde.modelMoments(parms_truth, eM, sampleTime, sampleStates, solve.model.set.fgy, nsims)
 	mM				<- tmp$mM
 	cat(paste("\nplot results"))
-	colgem.project.moments.for.sdesystem.comparison.plots3(heights, eM , mM, dir.name)	
+	cg.sde.comparison.plots3(heights, eM , mM, dir.name)	
 }
 
 
@@ -281,7 +286,7 @@ colgem.project.moments.for.sdesystem<- function()
 #~ mM_time <- system.time({
 #~   modelMoments = mM <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
 #~ })
-#~ colgem.project.moments.for.sdesystem.comparison.plots(eM, mM) 
+#~ cg.sde.comparison.plots(eM, mM) 
 
 #~ now do a comparison with model parameters different from true parameters 
 #~ parameters <- parms_truth
@@ -289,7 +294,7 @@ colgem.project.moments.for.sdesystem<- function()
 #~ parameters$beta1 <- parms_truth$beta1*5
 #~ solve.model.set.fgy(parameters)
 #~ modelMoments = mM <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
-#~ colgem.project.moments.for.sdesystem.comparison.plots(eM, mM, solve.model.set.fgy, parms_truth) 
+#~ cg.sde.comparison.plots(eM, mM, solve.model.set.fgy, parms_truth) 
 
 
 #~ compare computation times with likelihood
