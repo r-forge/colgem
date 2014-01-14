@@ -237,7 +237,11 @@ cg.sde<- function()
 	#	the randomness comes from fluctuations in the state variables S I0 I1 I2 
 	#cg.sde.nsim.mM()
 	
-	cg.sde.varyparam()
+	#	run one simulation of the epidemic under the cg.sde model for various parameters
+	#cg.sde.varyparam()
+	
+	#	produce 1e2 pseudo data sets under the cg.sde model for various paramaters
+	cg.sde.get.pseudodata()
 }
 
 cg.sde.varyparam<- function()
@@ -279,23 +283,42 @@ cg.sde.varyparam<- function()
 	#with increasing gi:	depletion of susceptibles with gi~3. epidemic does not take off with gi~0.25, need at least 0.5
 }
 
-cg.sde.simu.bdt<- function()
+cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50))
 {
-	my.mkdir(HOME, 'MOMSDE' )
-	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
 	#define model
-	tmp					<- cg.sde.define()
+	INFECTEDNAMES 		<<- c('I0', 'I1', 'I2')
+	tmp					<-  cg.sde.define()
 	F.skeleton			<<- tmp$F.skeleton
 	G.					<<- tmp$G
 	step.x				<<- tmp$step.x
-	solve.model.set.fgy	<- tmp$solve.model.set.fgy
+	solve.model.set.fgy	<-  tmp$solve.model.set.fgy
 	
+	#set up parameters
+	m				<-  parms$m
+	parms_truth		<<- parms	
+	FGYPARMS 		<<- parms_truth
+	
+	#simulated btd.n pseudo data sets
+	pseudo.datasets	<- lapply(seq_len(bdt.n), function(i)
+			{
+				pseudo.data					<- solve.model.set.fgy(parms_truth)	
+				pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
+				pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
+				pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]
+				pseudo.data$bdt 			<- simulatedBinaryDatedTree(parms$sampleTime, pseudo.data$sampleStates, discretizeRates=TRUE)
+				pseudo.data$eM 				<- calculate.cluster.size.moments.from.tree(pseudo.data$bdt, bdt.heights)
+				pseudo.data
+			})
+	pseudo.datasets	
+}
+
+cg.sde.get.pseudodata<- function()
+{	
 	#parameter template
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
 								times=seq(0, 50, by=.1), sampleTime=50, phi=0.5)	
 	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
-	nsims			<- 20
 	
 	#bits of the model that are varied
 	gi			<- c(0.5, 1, 3) 			#avg duration of I0
@@ -303,21 +326,19 @@ cg.sde.simu.bdt<- function()
 	parms.vary	<- expand.grid(gi=gi, bf= bf)	
 	parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
 	
-	#plot resulting epidemics for varying parameters
-	dummy		<- lapply(seq_len(nrow(parms.vary)),function(i)
-			{					  		
-				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]
-				
-				parms_truth		<<- parms.template	
-				FGYPARMS 		<<- parms_truth
-				file			<- paste("varyparam.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".pdf",sep='')
+	#generate pseudo data sets
+	dummy	<- lapply(seq_len(nrow(parms.vary)), function(i)
+			{
+				cat(paste("\nprocess gi=",parms.vary[i,'gi'],"bf=",parms.vary[i,'bf']))
+				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
+				parms			<-  parms.template
+				pseudo.datasets	<- cg.sde.get.pseudodata.for.param(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50))	
+				file			<- paste("pseudodata.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')
 				file			<- paste(dir.name,file,sep='/')
-				ans				<- solve.model.set.fgy(parms_truth, file)				
-			})	
-	#with increasing bf: 	smaller depletion of Susc, epidemic more stationary for bf=16  
-	#with increasing gi:	depletion of susceptibles with gi~3. epidemic does not take off with gi~0.25, need at least 0.5
+				cat(paste("\nsave pseudo data sets to file=",file))
+				save(pseudo.datasets, parms, file=file)				
+			})			
 }
-
 
 cg.sde.nsim.mM<- function()
 {	
