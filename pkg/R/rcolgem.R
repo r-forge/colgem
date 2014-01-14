@@ -331,9 +331,14 @@ coalescent.log.likelihood <- function(bdt, integrationMethod = 'rk4', finiteSize
 simulatedBinaryDatedTree <- function( x, ...) UseMethod("simulatedBinaryDatedTree")
 simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretizeRates=FALSE, fgyResolution = 100) 
 {
+	require(ape)
 #~ simulates a coalescent tree, assumes F., G. and Y. are defined
 #~ same attributes are defined as binaryDatedTree
 #~ <preliminaries>
+	n 			<- nrow(sampleStates)
+	sampleTimes <- rep( sampleTime, n) 
+	Nnode 		<-  n-1
+	
 	# NOTE when discretizing rates, this will neglect any changes in rates for t < 0
 	if (discretizeRates) 
 	{ 
@@ -343,51 +348,49 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, discretiz
 	{ 
 		USE_DISCRETE_FGY <<- FALSE 
 	}
-	n <- nrow(sampleStates)
-	sampleTimes <- rep( sampleTime, n) 
-	Nnode <-  n-1
 	#edge <- c()
 	#edge.length <- c()
-	edge.length <- rep(-1, Nnode + n-1) # should not have root edge
-	edge<- matrix(-1, (Nnode + n-1), 2)
-	tip.label <- as.character( 1:n )
-	maxSampleTime  = T <- max(sampleTimes)
-	heights <- rep(0, (Nnode + n) )
-	parentheights <- rep(-1, (Nnode + n) )
-	heights[1:n] <- maxSampleTime - sampleTimes
-	inEdgeMap <- rep(-1, Nnode + n)
-	outEdgeMap <- matrix(-1, (Nnode + n), 2)
-	parent <- 1:(Nnode + n) 
-	daughters <- matrix(-1, (Nnode + n), 2)
-	m =m <- dim(sampleStates)[2]
-	lstates <- matrix(-1, (Nnode + n), m)
-	mstates <- matrix(-1, (Nnode + n), m)
-	ustates <- matrix(-1, (Nnode + n), m)
-	lstates[1:n,] <- sampleStates
-	mstates[1:n,] <- sampleStates
-	ustates[1:n,] <- sampleStates
+	edge.length 	<- rep(-1, Nnode + n-1) # should not have root edge
+	edge			<- matrix(-1, (Nnode + n-1), 2)
+	tip.label 		<- as.character( 1:n )
+	maxSampleTime  	= T <- max(sampleTimes)
+	heights 		<- rep(0, (Nnode + n) )
+	parentheights 	<- rep(-1, (Nnode + n) )
+	heights[1:n] 	<- maxSampleTime - sampleTimes
+	inEdgeMap 		<- rep(-1, Nnode + n)
+	outEdgeMap 		<- matrix(-1, (Nnode + n), 2)
+	parent 			<- 1:(Nnode + n) 
+	daughters 		<- matrix(-1, (Nnode + n), 2)
+	m	 			<- dim(sampleStates)[2]
+	lstates 		<- matrix(-1, (Nnode + n), m)
+	mstates 		<- matrix(-1, (Nnode + n), m)
+	ustates 		<- matrix(-1, (Nnode + n), m)
+	lstates[1:n,] 	<- sampleStates
+	mstates[1:n,] 	<- sampleStates
+	ustates[1:n,] 	<- sampleStates
 #~ </preliminaries>
 	
 #~ <survival time to next event>
-	calculate.rates <- function(h, parms){
+	calculate.rates <- function(h, parms)
+	{
 		# eliminate diag elements for migration
-		t <- parms$maxSampleTime - h
-		.G <- G.(t) 
-		.F <- F.(t)
-		.Y <- Y.(t) 
-		X1 <- pmax( parms$A / .Y, 0)
-		X2 <-  pmax( (.Y - parms$A ) / .Y, 0)
-		X1[is.nan(X1)] <- 0
-		X2[is.nan(X2)] <- 0
+		t 					<- parms$maxSampleTime - h
+		.G 					<- G.(t) 
+		.F 					<- F.(t)
+		.Y 					<- Y.(t) 
+		X1 					<- pmax( parms$A / .Y, 0)
+		X2 					<-  pmax( (.Y - parms$A ) / .Y, 0)
+		X1[is.nan(X1)] 		<- 0
+		X2[is.nan(X2)] 		<- 0
 		X1[is.infinite(X1)] <- 0
 		X2[is.infinite(X2)] <- 0
-		X1mat <- matrix(X1,nrow=parms$m,ncol=parms$m, byrow=TRUE)
-		tX1mat <- matrix(X1,nrow=parms$m,ncol=parms$m, byrow=FALSE)
-		tX2mat <- matrix(X2, nrow=parms$m,ncol=parms$m, byrow=FALSE)
-		lambdaCoalescent <-  .F * X1mat * tX1mat
-		lambdaMigration <-  t(.G * X1mat  )
-		lambdaInvisibleTransmission <-  t(.F * tX2mat * X1mat)
-		diag(lambdaMigration) <- 0
+		X1mat 				<- matrix(X1,nrow=parms$m,ncol=parms$m, byrow=TRUE)
+		tX1mat 				<- matrix(X1,nrow=parms$m,ncol=parms$m, byrow=FALSE)
+		tX2mat 				<- matrix(X2, nrow=parms$m,ncol=parms$m, byrow=FALSE)
+		lambdaCoalescent 	<-  .F * X1mat * tX1mat
+		lambdaMigration 	<-  t(.G * X1mat  )
+		lambdaInvisibleTransmission	<-  t(.F * tX2mat * X1mat)
+		diag(lambdaMigration) 		<- 0
 		diag(lambdaInvisibleTransmission) <- 0
 		#browser()
 		return(list( X1=X1, X2=X2, lambdaCoalescent=lambdaCoalescent, lambdaMigration=lambdaMigration, lambdaInvisibleTransmission=lambdaInvisibleTransmission) )

@@ -6,6 +6,9 @@ Version: 0.0.1
 Date: 2013-10-09
 Author: {Erik M Volz, Oliver Ratmann}
 Maintainer: Erik M Volz <erik.volz+rcolgem@gmail.com>
+Depends:
+	R (>= 2.15.1),
+    ape
 Description: This package provides methods to compute the likelihood of a gene
     genealogy using coalescent models for populations with complex demographic
     histories.  A common example of a complex demographic history is the

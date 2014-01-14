@@ -234,7 +234,7 @@ colgem.project.moments.for.sdesystem<- function()
 				F.interps[[k]][[l]] <- approxfun( times[1:(length(times)-1)], lambdaskl/timestep, method='constant', rule=2)
 			}
 		}
-		F. 			<<- function(t.) t( sapply(1:m, function(k)  sapply(1:parameters$m, function(l) F.interps[[k]][[l]](t.)) ) )
+		F. 			<<- function(t.) t( sapply(1:parameters$m, function(k)  sapply(1:parameters$m, function(l) F.interps[[k]][[l]](t.)) ) )
 		if(shouldPlot && !is.na(dir.name))
 		{
 			class(o) <- 'deSolve'
