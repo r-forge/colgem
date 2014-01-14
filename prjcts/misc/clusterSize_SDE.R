@@ -314,6 +314,8 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0,
 
 cg.sde.get.pseudodata<- function()
 {	
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name		<- paste(HOME, 'MOMSDE',sep='/')	
 	#parameter template
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
