@@ -58,7 +58,7 @@ cg.sde.comparison.plots2 <- function(eM, nsims, solve.model.set.fgy, parms)
 	}
 }
 
-cg.sde.modelMoments<- function(parms, eM, sampleTime, sampleStates, solve.model.set.fgy, nsims)
+cg.sde.modelMoments<- function(parms, sampleTime, sampleStates, solve.model.set.fgy, nsims)
 {
 	mM <- list()
 	for (isim in 1:nsims)
@@ -225,6 +225,7 @@ cg.sde.define<- function()
 			plot(o)
 			dev.off()
 		}
+		list(simu=o, x.interp=x.interp, Y=Y., F=F.)
 	}
 	
 	list(F.skeleton=F.skeleton, G=G, step.x=step.x, solve.model.set.fgy=solve.model.set.fgy)
@@ -253,19 +254,17 @@ cg.sde.varyparam<- function()
 	#parameter template
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4,
-								times=seq(0, 50, by=.1))	
+								times=seq(0, 50, by=.1), sampleTime=50, phi=0.5)	
 	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
-	phi				<- .50 # sample fraction
-	sampleTime 		<- 50
 	nsims			<- 20
 							
 	#bits of the model that are varied
-	gi			<- c(0.25, 0.5, 1, 3) 		#avg duration of I0
+	gi			<- c(0.5, 1, 3) 			#avg duration of I0
 	bf			<- c(2,4,8,16) 				#dampening of beta0
 	parms.vary	<- expand.grid(gi=gi, bf= bf)	
 	parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
 	
-	#plot resulting epidemics 
+	#plot resulting epidemics for varying parameters
 	dummy		<- lapply(seq_len(nrow(parms.vary)),function(i)
 			{					  		
 				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]
@@ -274,11 +273,51 @@ cg.sde.varyparam<- function()
 				FGYPARMS 		<<- parms_truth
 				file			<- paste("varyparam.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".pdf",sep='')
 				file			<- paste(dir.name,file,sep='/')
-				solve.model.set.fgy(parms_truth, file)				
+				ans				<- solve.model.set.fgy(parms_truth, file)				
 			})	
 	#with increasing bf: 	smaller depletion of Susc, epidemic more stationary for bf=16  
-	
+	#with increasing gi:	depletion of susceptibles with gi~3. epidemic does not take off with gi~0.25, need at least 0.5
 }
+
+cg.sde.simu.bdt<- function()
+{
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
+	#define model
+	tmp					<- cg.sde.define()
+	F.skeleton			<<- tmp$F.skeleton
+	G.					<<- tmp$G
+	step.x				<<- tmp$step.x
+	solve.model.set.fgy	<- tmp$solve.model.set.fgy
+	
+	#parameter template
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
+								times=seq(0, 50, by=.1), sampleTime=50, phi=0.5)	
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+	nsims			<- 20
+	
+	#bits of the model that are varied
+	gi			<- c(0.5, 1, 3) 			#avg duration of I0
+	bf			<- c(2,4,8,16) 				#dampening of beta0
+	parms.vary	<- expand.grid(gi=gi, bf= bf)	
+	parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
+	
+	#plot resulting epidemics for varying parameters
+	dummy		<- lapply(seq_len(nrow(parms.vary)),function(i)
+			{					  		
+				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]
+				
+				parms_truth		<<- parms.template	
+				FGYPARMS 		<<- parms_truth
+				file			<- paste("varyparam.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".pdf",sep='')
+				file			<- paste(dir.name,file,sep='/')
+				ans				<- solve.model.set.fgy(parms_truth, file)				
+			})	
+	#with increasing bf: 	smaller depletion of Susc, epidemic more stationary for bf=16  
+	#with increasing gi:	depletion of susceptibles with gi~3. epidemic does not take off with gi~0.25, need at least 0.5
+}
+
 
 cg.sde.nsim.mM<- function()
 {	
@@ -288,11 +327,9 @@ cg.sde.nsim.mM<- function()
 	#~ parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 0.775, beta1=0.08, beta2=0.08, S0=2500, alpha = .05) 
 	parms_truth 	<<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4,
-								times=seq(0, 50, by=.1)) 
+								times=seq(0, 50, by=.1), sampleTime=50, phi=0.5) 
 	FGYPARMS 		<<- parms_truth
 	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
-	phi				<- .50 # sample fraction
-	sampleTime 		<- 50
 	nsims			<- 20
 	
 	tmp					<- cg.sde.define()
@@ -311,22 +348,22 @@ cg.sde.nsim.mM<- function()
 	# simulate coalescent tree with true parameters
 	file			<- paste(dir.name,'nsim.mM.epidemic.pdf',sep='/')
 	solve.model.set.fgy(parms_truth, file) 
-	Y.sampleTime 	<- Y.(sampleTime)
+	Y.sampleTime 	<- Y.(parms_truth$sampleTime)
 	m				<- 3
-	stateIndices 	<- rep( 1:m, round( phi * Y.sampleTime ) ) # sample each of three states in proportion to size
+	stateIndices 	<- rep( 1:m, round( parms_truth$phi * Y.sampleTime ) ) # sample each of three states in proportion to size
 	n 				<- length(stateIndices)
-	sampleTimes 	<- rep(sampleTime, n)
+	sampleTimes 	<- rep(parms_truth$sampleTime, n)
 	sampleStates 	<- diag(m)[stateIndices,]
 	cat(paste("\nsimulate structured coalescent tree, including tip states (0/1)"))
 	coalescentTree_time <- system.time({
-				bdt <- simulatedBinaryDatedTree(sampleTime, sampleStates, discretizeRates=TRUE) 
+				bdt <- simulatedBinaryDatedTree(parms_truth$sampleTime, sampleStates, discretizeRates=TRUE) 
 			})
 	# calculate empirical stats
 	heights 		<- seq(0, 50, length.out=50)
 	cat(paste("\ncalculate moments of observed tree by averaging over lineages; tip states 0/1"))
 	empiricalMoments= eM <- calculate.cluster.size.moments.from.tree(bdt, heights)
 	cat(paste("\ncalculate moments under model"))
-	tmp				<- cg.sde.modelMoments(parms_truth, eM, sampleTime, sampleStates, solve.model.set.fgy, nsims)
+	tmp				<- cg.sde.modelMoments(parms_truth, parms_truth$sampleTime, sampleStates, solve.model.set.fgy, nsims)
 	mM				<- tmp$mM
 	cat(paste("\nplot results"))
 	cg.sde.comparison.plots3(heights, eM , mM, dir.name)	
