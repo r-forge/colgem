@@ -600,39 +600,63 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates ,
 	dXiXjXij <- function(h, XiXjXij, parms, ...)
 	{
 		#X are vectors indexed by ancestor type
-		Xi <- XiXjXij[1:m]
-		Xj <- XiXjXij[(m+1):(2*m)]
+		Xi 	<- XiXjXij[1:m]
+		Xj 	<- XiXjXij[(m+1):(2*m)]
 		Xij <- XiXjXij[(2*m+1):(length(XiXjXij))]
-		t <- parms$maxTime - h
-		if (USE_DISCRETE_FGY){
-			if (FGY_INDEX < FGY_RESOLUTION &  h > FGY_H_BOUNDARIES[FGY_INDEX])  {FGY_INDEX <<- FGY_INDEX+1 ; return(dXiXjXij(h, XiXjXij, parms))}
-			if ( FGY_INDEX > 1 ) { if ( h< FGY_H_BOUNDARIES[FGY_INDEX-1]) { FGY_INDEX <<- FGY_INDEX-1 ; return(dXiXjXij(h, XiXjXij, parms))} }
+		t 	<- parms$maxTime - h
+		if (USE_DISCRETE_FGY)
+		{
+			if (FGY_INDEX < FGY_RESOLUTION &  h > FGY_H_BOUNDARIES[FGY_INDEX])  
+			{
+				FGY_INDEX <<- FGY_INDEX+1 
+				return(dXiXjXij(h, XiXjXij, parms))
+			}
+			if ( FGY_INDEX > 1 ) 
+			{ 
+				if ( h< FGY_H_BOUNDARIES[FGY_INDEX-1]) 
+				{ 
+					FGY_INDEX <<- FGY_INDEX-1 
+					return(dXiXjXij(h, XiXjXij, parms))
+				} 
+			}
 		}
-		.Y <- Y.(t)
-		.F <- F.(t)
-		.G <- G.(t)
-		Xi_Y <- Xi / .Y
-		Xj_Y <- Xj / .Y
-		Xij_Y <- Xij / .Y
-		csFpG <- colSums( .F + .G )
-		dXi <- .F %*% Xi_Y + .G %*% Xi_Y - csFpG * Xi_Y
-		dXj <- .F %*% Xj_Y + .G %*% Xj_Y - csFpG * Xj_Y
-		dXij <- .F %*% Xij_Y + .G %*% Xij_Y - csFpG * Xij_Y  + (.F %*% Xj_Y )*Xi_Y  + (.F %*% Xi_Y ) * Xj_Y
+		.Y 		<- Y.(t)
+		.F 		<- F.(t)
+		.G 		<- G.(t)
+		Xi_Y 	<- Xi / .Y
+		Xj_Y 	<- Xj / .Y
+		Xij_Y	<- Xij / .Y
+		csFpG 	<- colSums( .F + .G )
+		dXi 	<- .F %*% Xi_Y + .G %*% Xi_Y - csFpG * Xi_Y
+		dXj 	<- .F %*% Xj_Y + .G %*% Xj_Y - csFpG * Xj_Y
+		dXij	<- .F %*% Xij_Y + .G %*% Xij_Y - csFpG * Xij_Y  + (.F %*% Xj_Y )*Xi_Y  + (.F %*% Xi_Y ) * Xj_Y
 		list( c( dXi, dXj, dXij ) )
 	}
 	
 	dA <- function(h, A, parms, ...)
 	{
-		if (USE_DISCRETE_FGY){
-			if (FGY_INDEX < FGY_RESOLUTION &  h > FGY_H_BOUNDARIES[FGY_INDEX])  {FGY_INDEX <<- FGY_INDEX+1 ; return(dA(h, A, parms))}
-			if ( FGY_INDEX > 1 ) { if ( h< FGY_H_BOUNDARIES[FGY_INDEX-1]) { FGY_INDEX <<- FGY_INDEX-1 ; return(dA(h, A, parms))} }
+		if (USE_DISCRETE_FGY)
+		{
+			if (FGY_INDEX < FGY_RESOLUTION &  h > FGY_H_BOUNDARIES[FGY_INDEX])  
+			{
+				FGY_INDEX <<- FGY_INDEX+1 
+				return(dA(h, A, parms))
+			}
+			if ( FGY_INDEX > 1 ) 
+			{ 
+				if ( h< FGY_H_BOUNDARIES[FGY_INDEX-1]) 
+				{ 
+					FGY_INDEX <<- FGY_INDEX-1 
+					return(dA(h, A, parms))
+				} 
+			}
 		}
-		t <- parms$maxTime - h
-		.Y <- Y.(t)
-		.F <- F.(t)
-		.G <- G.(t)
-		A_Y <- A / .Y
-		csFpG <- colSums( .F + .G )
+		t 		<- parms$maxTime - h
+		.Y 		<- Y.(t)
+		.F 		<- F.(t)
+		.G 		<- G.(t)
+		A_Y 	<- A / .Y
+		csFpG	<- colSums( .F + .G )
 		list( .G %*% A_Y - csFpG * A_Y + (.F %*% A_Y) * pmax(1-A_Y, 0) )
 	}
 	
@@ -649,34 +673,39 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates ,
 #~ 	}
 	
 	# solve for A
-	A0 <- colSums(sampleStates) 
-	parameters <- list(maxTime = maxTime)
-	o <- ode(y=A0, times=heights, func=dA, parms=parameters, method=INTEGRATIONMETHOD ) 
-	FGY_INDEX <<- 1
-	A <- o[,2:(ncol(o))]
+	A0 			<- colSums(sampleStates) 
+	parameters 	<- list(maxTime = maxTime)
+	o 			<- ode(y=A0, times=heights, func=dA, parms=parameters, method=INTEGRATIONMETHOD ) 
+	FGY_INDEX 	<<- 1
+	A 			<- o[,2:(ncol(o))]
 	
 	# solve Xi Xj and Xij at same time, 3m variables, avoids approxfun nastiness
 	# solve second aggregated moment X2 & moments
-	Mij_h <- array(0, dim = c(m, m, timeResolution) )
-	for (i in 1:m){ # first tip type
-		for (j in i:m){ #second tip type
+	Mij_h 		<- array(0, dim = c(m, m, timeResolution) )
+	for (i in 1:m)
+	{ # first tip type
+		for (j in i:m)
+		{ #second tip type
 			#if (i!=j){
-			parameters <- list(maxTime = maxTime) 
-			Xij_h0 <- rep(0, m)
-			if (i==j) {Xij_h0[i] <- A0[i]}
-			XiXjXij_h0 <- c( diag(m)[i,] * A0, diag(m)[j,] * A0, Xij_h0) # each X is vector m(ancestor type) X 1
-			o <- ode(y=XiXjXij_h0, times=heights, func=dXiXjXij, parms=parameters, method=INTEGRATIONMETHOD ) 
-			Xij_h <- o[, (1 + 2*m+1) : ncol(o) ] # timeResolution X m(ancestor type)
-			tryCatch( Mij_h[i,j,] <- rowSums( Xij_h   ) / rowSums(A) # timeResolution X 1
-					, error = function(e) browser() )
-			Mij_h[j,i,] <- Mij_h[i,j,]
+			parameters 		<- list(maxTime = maxTime) 
+			Xij_h0 			<- rep(0, m)
+			if (i==j) 
+				Xij_h0[i]	<- A0[i]
+			XiXjXij_h0 		<- c( diag(m)[i,] * A0, diag(m)[j,] * A0, Xij_h0) # each X is vector m(ancestor type) X 1
+			o 				<- ode(y=XiXjXij_h0, times=heights, func=dXiXjXij, parms=parameters, method=INTEGRATIONMETHOD ) 
+			Xij_h 			<- o[, (1 + 2*m+1) : ncol(o) ] # timeResolution X m(ancestor type)
+			tryCatch( 
+				Mij_h[i,j,]	<- rowSums( Xij_h   ) / rowSums(A) # timeResolution X 1
+				, error = function(e) browser() )
+			Mij_h[j,i,] 	<- Mij_h[i,j,]
 			#browser()
 			#else{ #
 			#}
 		}
 	}
 	
-	if (discretizeRates) { .end.discrete.rates()}
+	if (discretizeRates) 
+		.end.discrete.rates()
 	list( heights=heights, M= Mij_h, A = A)
 }
 
