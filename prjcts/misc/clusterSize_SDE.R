@@ -242,7 +242,9 @@ cg.sde<- function()
 	#cg.sde.varyparam()
 	
 	#	produce 1e2 pseudo data sets under the cg.sde model for various paramaters
-	cg.sde.get.pseudodata()
+	#cg.sde.get.pseudodata()
+	
+	cg.sde.explore.pseudolkl()
 }
 
 cg.sde.varyparam<- function()
@@ -313,6 +315,80 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0,
 				pseudo.data
 			})
 	pseudo.datasets	
+}
+
+# plot distribution of cluster sizes for each tree height, 
+# this pools over many repeat runs to get a nice distribution
+cg.sde.pseudolkl.plotdistr<- function(pseudo.datasets, distr, heights, file)
+{
+	m		<- length( which( grepl('state',colnames(distr)) ) )
+	pdf(file=file, w=15, h=5)
+	par(mfcol=c(1,m))
+	lapply( seq_along(heights), function(ih)
+			{
+				cat(paste("\nplot distr",ih))
+				pseudo_h	<- subset( distr, height==heights[ih] )				
+				
+				eMi			<- sapply(seq_along(pseudo.datasets), function(k)	pseudo.datasets[[k]][['eMi']][,ih]	)
+				eMii		<- sapply(seq_along(pseudo.datasets), function(k)	diag(pseudo.datasets[[k]][['eMij']][,,ih])	)
+				eMi.avg		<- rowMeans( eMi )
+								
+				sapply( seq_len(m), function(j)
+						{
+							tmp	<- unclass( pseudo_h[,j,with=0] )[[1]]
+							hist( tmp, main=paste('state=',j,'height=',round(heights[ih],d=1)), breaks=max(tmp)+1, xlab='counts', col='gray50', bty='n', border=NA )				
+							abline(v=eMi.avg[j])	
+						})				
+			})
+	dev.off()
+}
+
+cg.sde.pseudolkl<- function()
+{
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name		<- paste(HOME, 'MOMSDE',sep='/')	
+	#parameter template
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+			S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
+			times=seq(0, 50, by=.1), sampleTime=50, phi=0.5)	
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+	
+	#bits of the model that are varied
+	gi			<- c(0.5, 1, 3) 			#avg duration of I0
+	bf			<- c(2,4,8,16) 				#dampening of beta0
+	parms.vary	<- expand.grid(gi=gi, bf= bf)	
+	parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
+	i			<- 8
+	
+	
+	m 			<- ncol( bdt$sampleStates )
+	heights		<- seq(10, 50, length.out=50)
+	
+	#load pseudo data set
+	parms								<- parms.template
+	parms[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
+	file								<- paste("pseudodata.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')
+	file								<- paste(dir.name,file,sep='/')
+	cat(paste("\nload file=",file))
+	tmp									<- load(file)
+	
+	#collect cluster size distributions over replicates
+	distr	<- lapply(seq_along(pseudo.datasets), function(k)
+			{
+				pseudo.data	<- pseudo.datasets[[k]]
+				print(k)
+				bdt			<- pseudo.data$bdt
+				distr		<- calculate.cluster.size.distr.from.tree(bdt, heights)
+				cbind( distr, replicate=k )
+			})
+	distr	<- do.call("rbind",distr)
+	
+	# plot distribution of cluster sizes for each tree height
+	file								<- paste("pseudodistr.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".pdf",sep='')
+	file								<- paste(dir.name,file,sep='/')
+	cg.sde.pseudolkl.plotdistr(pseudo.datasets, distr, heights, file)
+	
+	# fit Poisson density to samples
 }
 
 cg.sde.get.pseudodata<- function()

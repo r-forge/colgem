@@ -716,6 +716,41 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates ,
 	list( heights=heights, Mij= Mij_h, Mi=Mi_h, A = A)
 }
 
+calculate.cluster.size.distr.from.tree<- function(bdt, heights)
+{
+	m 		<- ncol( bdt$sampleStates )	
+	is.tip 	<- function(bdt, u) 
+	{ 
+		ifelse(is.na(bdt$daughters[u,1]), TRUE, FALSE)
+	}
+	identify.tips <- function(bdt, u) 
+	{
+		if (is.tip(bdt, u)) return(u)
+		uv	<- bdt$daughters[u,]
+		c(identify.tips(bdt, uv[1]), identify.tips(bdt, uv[2]) ) 
+	}
+	calculate.sizes.u <- function(bdt, u) 
+	{
+		tips	<- identify.tips(bdt, u)
+		colSums( bdt$sampleStates[tips,,drop=FALSE] )									
+	}
+	calculate.sizes <- function(bdt, extant)
+	{
+		if(length(extant)==0)	return( matrix(NA,ncol( bdt$sampleStates ),0) )
+		sapply( extant, function(u) calculate.sizes.u(bdt, u) ) 
+	}		
+	distr	<- lapply( heights, function(h)
+			{
+				extant 				<- .extant.at.height(h, bdt) 
+				sizes_h				<- calculate.sizes(bdt, extant)
+				rownames(sizes_h)	<- paste('state',1:m,sep='.')				
+				as.data.table( t( rbind(sizes_h, height=ifelse(ncol(sizes_h),h,numeric(0)), ntip=ifelse(ncol(sizes_h),colSums(sizes_h),numeric(0))) ) )
+			})
+	#print(sapply(distr, function(x) ncol(x) ))
+	#print(tail(distr,1))
+	distr	<- do.call("rbind",distr)
+	distr	
+}
 
 #' Calculate cluster size moments from tree
 #' @param bdt		binary dated tree
