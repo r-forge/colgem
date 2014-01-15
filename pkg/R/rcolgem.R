@@ -739,11 +739,21 @@ calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 		uv	<- bdt$daughters[u,]
 		c(identify.tips(uv[1]), identify.tips(uv[2]) ) 
 	}
+	calculate.moment1 <- function(u, i) 
+	{
+		tips	<- identify.tips(u)
+		sum( bdt$sampleStates[tips,i] )				
+	}	
+	calculate.mean.moment1 <- function(extant, i)
+	{
+		if(length(extant)==0)	return(NA)
+		mean( sapply( extant, function(u) calculate.moment1(u, i) ) ) 
+	}
 	calculate.moment2 <- function(u, i, j) 
 	{
 		tips	<- identify.tips(u)
-		itips 	<-  sum( bdt$sampleStates[tips,i] )
-		jtips 	<-  sum( bdt$sampleStates[tips,j] )
+		itips 	<- sum( bdt$sampleStates[tips,i] )
+		jtips 	<- sum( bdt$sampleStates[tips,j] )
 		itips * jtips
 	}
 	calculate.mean.moment2 <- function(extant, i, j)
@@ -751,14 +761,15 @@ calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 		if (length(extant)==0) return(NA)
 		mean( sapply( extant, function(u) calculate.moment2(u, i, j) ) ) 
 	}
-	for (ih in 1:length(heights))
+	for(ih in 1:length(heights))
 	{
 		h 		<- heights[ih]
 		extant 	<- .extant.at.height(h, bdt) 
-		if (length(extant) <=1)
+		if(length(extant) <=1)
 		{
 			for (i in 1:m)
 			{
+				Mi[i,ih]	<- Mi[i,ih-1]
 				for (j in i:m)
 				{
 					Mij[i,j,ih] <- Mij[i,j,ih-1]
@@ -770,6 +781,7 @@ calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 		{
 			for (i in 1:m)
 			{
+				Mi[i,ih]	<- calculate.mean.moment1(extant,i)
 				for (j in i:m)
 				{
 					Mij[i,j,ih] <- calculate.mean.moment2(extant,i,j)
@@ -778,5 +790,5 @@ calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 			}
 		}
 	}	
-	Mij
+	list(Mi=Mi, Mij=Mij)
 }
