@@ -726,46 +726,57 @@ calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 {
 # bdt : binaryDatedTree
 # heights : vector numeric, heights at which to calculate cluster sizes
-	m <- ncol( bdt$sampleStates )
-	Mij <- array(0, dim=c(m, m, length(heights)) )
-	is.tip <- function(u) { if(is.na(bdt$daughters[u,1]) ) return(TRUE) else{ return(FALSE) }}
+	m 		<- ncol( bdt$sampleStates )
+	Mi		<- matrix(0, m, length(heights))
+	Mij 	<- array(0, dim=c(m, m, length(heights)) )
+	is.tip 	<- function(u) 
+	{ 
+		ifelse(is.na(bdt$daughters[u,1]), TRUE, FALSE)
+	}
 	identify.tips <- function(u) 
 	{
 		if (is.tip(u)) return(u)
-		uv <- bdt$daughters[u,]
+		uv	<- bdt$daughters[u,]
 		c(identify.tips(uv[1]), identify.tips(uv[2]) ) 
 	}
-	calculate.moment <- function(u, i, j) 
+	calculate.moment2 <- function(u, i, j) 
 	{
-		tips <- identify.tips(u)
-		itips <-  sum( bdt$sampleStates[tips,i] )
-		jtips <-  sum( bdt$sampleStates[tips,j] )
+		tips	<- identify.tips(u)
+		itips 	<-  sum( bdt$sampleStates[tips,i] )
+		jtips 	<-  sum( bdt$sampleStates[tips,j] )
 		itips * jtips
 	}
-	calculate.mean.moment <- function(extant, i, j)
+	calculate.mean.moment2 <- function(extant, i, j)
 	{
 		if (length(extant)==0) return(NA)
-		mean( sapply( extant, function(u) calculate.moment(u, i, j) ) ) 
+		mean( sapply( extant, function(u) calculate.moment2(u, i, j) ) ) 
 	}
-	for (ih in 1:length(heights)){
-		h <- heights[ih]
-		extant <- .extant.at.height(h, bdt) 
-		if (length(extant) <=1){
-			for (i in 1:m){
-				for (j in i:m){
+	for (ih in 1:length(heights))
+	{
+		h 		<- heights[ih]
+		extant 	<- .extant.at.height(h, bdt) 
+		if (length(extant) <=1)
+		{
+			for (i in 1:m)
+			{
+				for (j in i:m)
+				{
 					Mij[i,j,ih] <- Mij[i,j,ih-1]
 					Mij[j,i,ih] <- Mij[i,j,ih]
 				}
 			}
-		} else{
-			for (i in 1:m){
-				for (j in i:m){
-					Mij[i,j,ih] <- calculate.mean.moment(extant,i,j)
+		} 
+		else
+		{
+			for (i in 1:m)
+			{
+				for (j in i:m)
+				{
+					Mij[i,j,ih] <- calculate.mean.moment2(extant,i,j)
 					Mij[j,i,ih] <- Mij[i,j,ih]
 				}
 			}
 		}
-	}
-	
+	}	
 	Mij
 }
