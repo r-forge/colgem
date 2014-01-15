@@ -682,6 +682,7 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates ,
 	# solve Xi Xj and Xij at same time, 3m variables, avoids approxfun nastiness
 	# solve second aggregated moment X2 & moments
 	Mij_h 		<- array(0, dim = c(m, m, timeResolution) )
+	Mi_h		<- matrix(0, m, timeResolution)
 	for (i in 1:m)
 	{ # first tip type
 		for (j in i:m)
@@ -689,24 +690,30 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates ,
 			#if (i!=j){
 			parameters 		<- list(maxTime = maxTime) 
 			Xij_h0 			<- rep(0, m)
-			if (i==j) 
+			if(i==j) 
 				Xij_h0[i]	<- A0[i]
 			XiXjXij_h0 		<- c( diag(m)[i,] * A0, diag(m)[j,] * A0, Xij_h0) # each X is vector m(ancestor type) X 1
-			o 				<- ode(y=XiXjXij_h0, times=heights, func=dXiXjXij, parms=parameters, method=INTEGRATIONMETHOD ) 
-			Xij_h 			<- o[, (1 + 2*m+1) : ncol(o) ] # timeResolution X m(ancestor type)
-			tryCatch( 
-				Mij_h[i,j,]	<- rowSums( Xij_h   ) / rowSums(A) # timeResolution X 1
+			o 				<- ode(y=XiXjXij_h0, times=heights, func=dXiXjXij, parms=parameters, method=INTEGRATIONMETHOD )
+			# moments
+			Xij_h 			<- o[, (1 + 2*m+1) : ncol(o) ] 
+			if(i==j)
+			{
+				Xi_h		<- o[, 1+1:m]	
+				tryCatch( 
+					Mi_h[i,]<- rowSums( Xi_h   ) / rowSums(A)	# why avg over cols? / total lineages								
+							, error = function(e) browser() )
+			}		
+			# covariances
+			tryCatch( 					
+				Mij_h[i,j,]	<- rowSums( Xij_h   ) / rowSums(A) 	# timeResolution X 1
 				, error = function(e) browser() )
-			Mij_h[j,i,] 	<- Mij_h[i,j,]
-			#browser()
-			#else{ #
-			#}
+			Mij_h[j,i,] 	<- Mij_h[i,j,]			
 		}
 	}
 	
 	if (discretizeRates) 
 		.end.discrete.rates()
-	list( heights=heights, M= Mij_h, A = A)
+	list( heights=heights, M= Mij_h, E=Mi_h, A = A)
 }
 
 
