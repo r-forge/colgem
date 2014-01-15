@@ -106,10 +106,10 @@ colgem.project.moments.for.odesystem<- function()
 	
 	# calculate empirical stats
 	heights 		<- seq(1, 50, length.out=50)
-	empiricalMoments<- eM	<- calculate.cluster.size.moments.from.tree(bdt, heights)
-	
+	eM				<- calculate.cluster.size.moments.from.tree(bdt, heights)
+	eM				<- eM$Mij		#reduce to covariances
 	# calculate model stats
-	modelMoments	<- mM 	<- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+	mM 				<- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
 	colgem.project.moments.for.odesystem.comparisonplots(eM, mM) 
 	
 	#~ now do a comparison with model parameters different from true parameters 
@@ -117,7 +117,8 @@ colgem.project.moments.for.odesystem<- function()
 	parameters$beta0 	<- parms_truth$beta0/2
 	parameters$beta1 	<- parms_truth$beta1*5
 	solve.model.set.fgy(parameters)
-	modelMoments 		<- mM 	<- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+	mM 					<- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+	mM					<- mM$Mij
 	colgem.project.moments.for.odesystem.comparisonplots(eM, mM) 
 }
 

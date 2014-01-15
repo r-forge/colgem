@@ -713,7 +713,7 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates ,
 	
 	if (discretizeRates) 
 		.end.discrete.rates()
-	list( heights=heights, M= Mij_h, E=Mi_h, A = A)
+	list( heights=heights, Mij= Mij_h, Mi=Mi_h, A = A)
 }
 
 

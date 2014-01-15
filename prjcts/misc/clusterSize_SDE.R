@@ -73,7 +73,7 @@ cg.sde.modelMoments<- function(parms, sampleTime, sampleStates, solve.model.set.
 				#timeResolution = 50; discretizeRates=TRUE; fgyResolution = 100; integrationMethod = 'rk4'
 				calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4');
 			})
-	list(mM=mM, mM.time=mM.time)	
+	list(mM=mM)	
 }
 
 cg.sde.comparison.plots3<- function(heights, eM, mM, dir.name)
@@ -236,13 +236,13 @@ cg.sde<- function()
 {
 	#	for a single model simulation, compute nsim=20 moment trajectories. 
 	#	the randomness comes from fluctuations in the state variables S I0 I1 I2 
-	cg.sde.nsim.mM()
+	#cg.sde.nsim.mM()
 	
 	#	run one simulation of the epidemic under the cg.sde model for various parameters
 	#cg.sde.varyparam()
 	
 	#	produce 1e2 pseudo data sets under the cg.sde model for various paramaters
-	#cg.sde.get.pseudodata()
+	cg.sde.get.pseudodata()
 }
 
 cg.sde.varyparam<- function()
@@ -307,7 +307,9 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0,
 				pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
 				pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]
 				pseudo.data$bdt 			<- simulatedBinaryDatedTree(parms$sampleTime, pseudo.data$sampleStates, discretizeRates=TRUE)
-				pseudo.data$eM 				<- calculate.cluster.size.moments.from.tree(pseudo.data$bdt, bdt.heights)
+				tmp			 				<- calculate.cluster.size.moments.from.tree(pseudo.data$bdt, bdt.heights)				
+				pseudo.data$eMi 			<- tmp$Mi
+				pseudo.data$eMij 			<- tmp$Mij
 				pseudo.data
 			})
 	pseudo.datasets	
@@ -335,7 +337,7 @@ cg.sde.get.pseudodata<- function()
 				cat(paste("\nprocess gi=",parms.vary[i,'gi'],"bf=",parms.vary[i,'bf']))
 				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
 				parms			<-  parms.template
-				pseudo.datasets	<- cg.sde.get.pseudodata.for.param(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50))	
+				pseudo.datasets	<- cg.sde.get.pseudodata.for.param(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50))
 				file			<- paste("pseudodata.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')
 				file			<- paste(dir.name,file,sep='/')
 				cat(paste("\nsave pseudo data sets to file=",file))
@@ -385,10 +387,11 @@ cg.sde.nsim.mM<- function()
 	# calculate empirical stats
 	heights 		<- seq(0, 50, length.out=50)
 	cat(paste("\ncalculate moments of observed tree by averaging over lineages; tip states 0/1"))
-	empiricalMoments= eM <- calculate.cluster.size.moments.from.tree(bdt, heights)
+	eM 				<- calculate.cluster.size.moments.from.tree(bdt, heights)
+	eM				<- eM$Mij
 	cat(paste("\ncalculate moments under model"))
-	tmp				<- cg.sde.modelMoments(parms_truth, parms_truth$sampleTime, sampleStates, solve.model.set.fgy, nsims)
-	mM				<- tmp$mM
+	mM				<- cg.sde.modelMoments(parms_truth, parms_truth$sampleTime, sampleStates, solve.model.set.fgy, nsims)
+	mM				<- mM$mMij
 	cat(paste("\nplot results"))
 	cg.sde.comparison.plots3(heights, eM , mM, dir.name)	
 }
