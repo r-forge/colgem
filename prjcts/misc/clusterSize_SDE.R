@@ -61,15 +61,16 @@ cg.sde.comparison.plots2 <- function(eM, nsims, solve.model.set.fgy, parms)
 cg.sde.modelMoments<- function(parms, sampleTime, sampleStates, solve.model.set.fgy, nsims)
 {
 	mM <- list()
-	for (isim in 1:nsims)
-	{
-		mM.time <- system.time({  
-					modelMoments = mM_i <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
-				})
-	}
+	#for (isim in 1:nsims)
+	#{
+	#	mM.time <- system.time({  
+	#				modelMoments = mM_i <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+	#			})
+	#}
 	mM <- lapply(1:nsims, function(isim) 
 			{
 				solve.model.set.fgy(parms)
+				#timeResolution = 50; discretizeRates=TRUE; fgyResolution = 100; integrationMethod = 'rk4'
 				calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4');
 			})
 	list(mM=mM, mM.time=mM.time)	
@@ -235,13 +236,13 @@ cg.sde<- function()
 {
 	#	for a single model simulation, compute nsim=20 moment trajectories. 
 	#	the randomness comes from fluctuations in the state variables S I0 I1 I2 
-	#cg.sde.nsim.mM()
+	cg.sde.nsim.mM()
 	
 	#	run one simulation of the epidemic under the cg.sde model for various parameters
 	#cg.sde.varyparam()
 	
 	#	produce 1e2 pseudo data sets under the cg.sde model for various paramaters
-	cg.sde.get.pseudodata()
+	#cg.sde.get.pseudodata()
 }
 
 cg.sde.varyparam<- function()
