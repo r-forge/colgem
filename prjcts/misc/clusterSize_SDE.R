@@ -286,7 +286,7 @@ cg.sde.varyparam<- function()
 	#with increasing gi:	depletion of susceptibles with gi~3. epidemic does not take off with gi~0.25, need at least 0.5
 }
 
-cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50))
+cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50), distr.heights=seq(10, 50, length.out=50))
 {
 	#define model
 	INFECTEDNAMES 		<<- c('I0', 'I1', 'I2')
@@ -308,7 +308,8 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0,
 				pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
 				pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
 				pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]
-				pseudo.data$bdt 			<- simulatedBinaryDatedTree(parms$sampleTime, pseudo.data$sampleStates, discretizeRates=TRUE)
+				pseudo.data$bdt 			<- simulatedBinaryDatedTree(parms$sampleTime, pseudo.data$sampleStates, discretizeRates=TRUE)				
+				pseudo.data$distr			<- calculate.cluster.size.distr.from.tree(pseudo.data$bdt, distr.heights)
 				tmp			 				<- calculate.cluster.size.moments.from.tree(pseudo.data$bdt, bdt.heights)				
 				pseudo.data$eMi 			<- tmp$Mi
 				pseudo.data$eMij 			<- tmp$Mij
@@ -339,6 +340,52 @@ cg.sde.pseudolkl.plotdistr<- function(pseudo.datasets, distr, heights, file)
 							hist( tmp, main=paste('state=',j,'height=',round(heights[ih],d=1)), breaks=max(tmp)+1, xlab='counts', col='gray50', bty='n', border=NA )				
 							abline(v=eMi.avg[j])	
 						})				
+			})
+	dev.off()
+}
+
+# plot distribution of cluster sizes for each tree height and add possible pseudo likelihoods
+# this pools over many repeat runs to get a nice distribution
+cg.sde.pseudolkl.plotpotentiallkl<- function(pseudo.datasets, distr, heights, file)
+{
+	library(MASS)
+	m		<- length( which( grepl('state',colnames(distr)) ) )
+	pdf(file=file, w=15, h=5)
+	par(mfcol=c(1,m))
+	lapply( seq_along(heights), function(ih)
+			{
+				cat(paste("\nplot distr",ih))
+				pseudo_h	<- subset( distr, height==heights[ih] )				
+				
+				eMi			<- sapply(seq_along(pseudo.datasets), function(k)	pseudo.datasets[[k]][['eMi']][,ih]	)
+				eMii		<- sapply(seq_along(pseudo.datasets), function(k)	diag(pseudo.datasets[[k]][['eMij']][,,ih])	)
+				eMi.avg		<- rowMeans( eMi )
+				
+				suppressWarnings(
+				sapply( seq_len(m), function(j)
+						{
+							tmp	<- unclass( pseudo_h[,j,with=0] )[[1]]
+							tmp		<- unclass( pseudo_h[,j,with=0] )[[1]]				
+							hist( tmp, main=paste('state=',j,'height=',round(heights[ih],d=1)), breaks=max(tmp)+1, xlab='counts', freq=FALSE, col='gray50', bty='n', border=NA )
+							#	try different pseudo lkls
+							mle		<- fitdistr(tmp, densfun="Poisson")
+							fit.x	<- seq.int(0,max(tmp))
+							lines(fit.x, dpois(fit.x, mle$estimate), col="blue")
+							mle		<- fitdistr(tmp, densfun="Geometric")
+							fit.x	<- seq.int(0,max(tmp))
+							lines(fit.x, dpois(fit.x, mle$estimate), col="red")
+							mle		<- fitdistr(tmp, densfun="negative binomial")
+							fit.x	<- seq.int(0,max(tmp))
+							lines(fit.x, dnbinom(fit.x, size=mle$estimate['size'], mu=mle$estimate['mu']), col="orange")
+							#	fit Neg Bin based on first two moments
+							nbinom.p	<- 1 - eMi.avg[j]/eMii.avg[j]
+							nbinom.r	<- eMi.avg[j] * (1 - nbinom.p) / nbinom.p  	
+							lines(fit.x, dnbinom(fit.x, size=nbinom.r, prob=1-nbinom.p), col="orange", lty=2)
+							#	plot mean
+							if(j==2)
+								legend('topright', bty='n', border=NA, lty=c(1,1,1,2), fill= c('blue','red','orange','orange'), legend=c('Poisson mle','Geometric mle', 'NegBin mle', 'NegBin mom'))															
+						})	
+				)
 			})
 	dev.off()
 }
@@ -386,19 +433,34 @@ cg.sde.pseudolkl<- function()
 	# plot distribution of cluster sizes for each tree height
 	file								<- paste("pseudodistr.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".pdf",sep='')
 	file								<- paste(dir.name,file,sep='/')
-	cg.sde.pseudolkl.plotdistr(pseudo.datasets, distr, heights, file)
+	cg.sde.pseudolkl.plotdistr(pseudo.datasets, distr, heights, file)	
+
+	# explore potential pseudo likelihoods for each tree height
+	file								<- paste("pseudodistr.potential.lkl.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".pdf",sep='')
+	file								<- paste(dir.name,file,sep='/')
+	cg.sde.pseudolkl.plotpotentiallkl(pseudo.datasets, distr, heights, file)
 	
-	# fit Poisson density to samples
+	#	for every single bdt, the cluster size distribution breaks down deep in the tree, need h<40
+	#	for every single bdt, the variance is hard to estimate close to the tips, need h>35 or more tips
 }
 
 cg.sde.get.pseudodata<- function()
 {	
+	index	<- NA
+	if(exists("argv"))
+	{
+		tmp<- na.omit(sapply(argv,function(arg)
+						{	switch(substr(arg,2,2),
+									i= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
+		if(length(tmp)>0) index<- tmp[1]
+	}	
+	
 	my.mkdir(HOME, 'MOMSDE' )
 	dir.name		<- paste(HOME, 'MOMSDE',sep='/')	
 	#parameter template
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
-								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
-								times=seq(0, 50, by=.1), sampleTime=50, phi=0.5)	
+								S_0=2e5, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
+								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25)	
 	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
 	
 	#bits of the model that are varied
@@ -407,6 +469,10 @@ cg.sde.get.pseudodata<- function()
 	parms.vary	<- expand.grid(gi=gi, bf= bf)	
 	parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
 	
+	if(!is.na(index))
+	{
+		parms.vary	<- parms.vary[index,,drop=0]
+	}
 	#generate pseudo data sets
 	dummy	<- lapply(seq_len(nrow(parms.vary)), function(i)
 			{
@@ -414,7 +480,8 @@ cg.sde.get.pseudodata<- function()
 				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
 				parms			<-  parms.template
 				pseudo.datasets	<- cg.sde.get.pseudodata.for.param(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50))
-				file			<- paste("pseudodata.gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')
+				file			<- paste('nsim.mM.epidemic.S=',parms_truth$S_0,'.pdf',sep='')
+				file			<- paste("pseudodata.S=",parms.vary$S_0,"gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')
 				file			<- paste(dir.name,file,sep='/')
 				cat(paste("\nsave pseudo data sets to file=",file))
 				save(pseudo.datasets, parms, file=file)				
@@ -428,11 +495,11 @@ cg.sde.nsim.mM<- function()
 	
 	#~ parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 0.775, beta1=0.08, beta2=0.08, S0=2500, alpha = .05) 
 	parms_truth 	<<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
-								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4,
-								times=seq(0, 50, by=.1), sampleTime=50, phi=0.5) 
+								S_0=2e5, I0_0=1, I1_0=1, I2_0=1, alpha = 4,
+								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25) 
 	FGYPARMS 		<<- parms_truth
 	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
-	nsims			<- 20
+	nsims			<- 1
 	
 	tmp					<- cg.sde.define()
 	F.skeleton			<<- tmp$F.skeleton
@@ -448,8 +515,9 @@ cg.sde.nsim.mM<- function()
 	
 	
 	# simulate coalescent tree with true parameters
-	file			<- paste(dir.name,'nsim.mM.epidemic.pdf',sep='/')
-	solve.model.set.fgy(parms_truth, file) 
+	file			<- paste('nsim.mM.epidemic.S=',parms_truth$S_0,'.pdf',sep='')
+	file			<- paste(dir.name,file,sep='/')
+	dummy			<- solve.model.set.fgy(parms_truth, file) 
 	Y.sampleTime 	<- Y.(parms_truth$sampleTime)
 	m				<- 3
 	stateIndices 	<- rep( 1:m, round( parms_truth$phi * Y.sampleTime ) ) # sample each of three states in proportion to size
@@ -460,6 +528,7 @@ cg.sde.nsim.mM<- function()
 	coalescentTree_time <- system.time({
 				bdt <- simulatedBinaryDatedTree(parms_truth$sampleTime, sampleStates, discretizeRates=TRUE) 
 			})
+	print(coalescentTree_time)
 	# calculate empirical stats
 	heights 		<- seq(0, 50, length.out=50)
 	cat(paste("\ncalculate moments of observed tree by averaging over lineages; tip states 0/1"))

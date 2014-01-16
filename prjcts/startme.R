@@ -28,7 +28,7 @@ CODE.HOME	<<- "/Users/Oliver/workspace_sandbox/colgem"
 HOME		<<- "/Users/Oliver/workspace_sandbox/colgem/prjcts"
 default.fun	<- "colgem.project.moments.for.odesystem"
 default.fun	<- "cg.sde"
-
+default.fun	<- "cg.pipeline"
 
 
 
@@ -40,7 +40,8 @@ if(any(args=='--args'))
 	args<- args[-(1:match("--args", args)) ]
 ###############################################################################
 DATA		<<- HOME
-DEBUG	<<- 0
+SCRIPT		<<- HOME
+DEBUG		<<- 0
 LIB.LOC		<<- NULL
 #LIB.LOC		<<- paste(CODE.HOME,"../",sep='')
 EPS			<<- 1e-12
@@ -208,7 +209,7 @@ if(length(args))
 	tmp<- na.omit(sapply(args,function(arg)
 					{
 						switch(substr(arg,2,4),
-								exe= return(substr(arg,5,nchar(arg))),
+								exe= return(substr(arg,6,nchar(arg))),
 								NA)
 					}))
 	if(length(tmp)!=0)
@@ -217,7 +218,8 @@ if(length(args))
 		else default.fun<- switch(tmp[1],
 					MAKE.DOCUMENTATION		 = "my.make.documentation",
 					MOM.ODE					 = "colgem.project.moments.for.odesystem",
-					MOM.SDE					 = "cg.sde"
+					MOM.SDE					 = "cg.sde",
+					MOM.SDE.PSEUDODATA		 = "cg.sde.get.pseudodata"
 					)
 	}
 	tmp<- na.omit(sapply(args,function(arg)
