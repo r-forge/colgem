@@ -718,6 +718,7 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates ,
 
 calculate.cluster.size.distr.from.tree<- function(bdt, heights)
 {
+	require(data.table)
 	m 		<- ncol( bdt$sampleStates )	
 	is.tip 	<- function(bdt, u) 
 	{ 
