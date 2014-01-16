@@ -1,5 +1,6 @@
 #! /Library/Frameworks/R.framework/Versions/2.15/Resources/bin/Rscript
 ##	the first line must be the absolute path to Rscript - need to set manually
+##! /apps/R/2.15/lib64/R/bin/Rscript
 ###############################################################################
 #
 #
@@ -26,12 +27,12 @@
 #	set these as needed
 CODE.HOME	<<- "/Users/Oliver/workspace_sandbox/colgem"
 HOME		<<- "/Users/Oliver/workspace_sandbox/colgem/prjcts"
+#CODE.HOME	<<- "/work/or105/libs/colgem"
+#HOME		<<- "/work/or105/libs/colgem/prjcts"
+
 default.fun	<- "colgem.project.moments.for.odesystem"
 default.fun	<- "cg.sde"
 default.fun	<- "cg.pipeline"
-
-
-
 ###############################################################################
 args <- commandArgs()
 if(!any(args=='--args'))
