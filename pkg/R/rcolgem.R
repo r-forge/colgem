@@ -743,6 +743,7 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates, 
 
 calculate.cluster.size.distr.from.tree<- function(bdt, heights)
 {
+	require(data.table)
 	m 		<- ncol( bdt$sampleStates )	
 	is.tip 	<- function(bdt, u) 
 	{ 
@@ -784,7 +785,6 @@ calculate.cluster.size.distr.from.tree<- function(bdt, heights)
 #'
 calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 {
-	require(data.table)
 # bdt : binaryDatedTree
 # heights : vector numeric, heights at which to calculate cluster sizes
 	m 		<- ncol( bdt$sampleStates )

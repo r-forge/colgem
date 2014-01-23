@@ -304,6 +304,7 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0,
 	#simulated btd.n pseudo data sets
 	pseudo.datasets	<- lapply(seq_len(bdt.n), function(i)
 			{
+				cat(paste('\nprocess bdt.n',i))
 				pseudo.data					<- solve.model.set.fgy(parms_truth)	
 				pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
 				pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
