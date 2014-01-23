@@ -375,6 +375,7 @@ coalescent.log.likelihood <- function(bdt, FGY=NULL, integrationMethod = 'rk4', 
 simulatedBinaryDatedTree <- function( x, ...) UseMethod("simulatedBinaryDatedTree")
 simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
 {
+	require(ape)
 #~ simulates a coalescent tree, assumes F., G. and Y. are defined
 #~ same attributes are defined as binaryDatedTree
 	globalParms <- list( USE_DISCRETE_FGY = discretizeRates  )
@@ -736,7 +737,7 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates, 
 	}
 	
 	if (discretizeRates) { globalParms <- .end.discrete.rates(globalParms)}
-	list( heights=heights, M= Mij_h, A = A)
+	list( heights=heights, Mi= Mi_h, Mij= Mij_h, A = A)
 }
 
 calculate.cluster.size.distr.from.tree<- function(bdt, heights)
@@ -849,5 +850,5 @@ calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 		}
 	}
 	
-	Mij
+	list( Mi=Mi, Mij=Mij )
 }
