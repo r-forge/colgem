@@ -60,20 +60,13 @@ cg.sde.comparison.plots2 <- function(eM, nsims, solve.model.set.fgy, parms)
 ################################################################################################
 cg.sde.modelMoments<- function(parms, sampleTime, sampleStates, solve.model.set.fgy, nsims)
 {
-	mM <- list()
-	#for (isim in 1:nsims)
-	#{
-	#	mM.time <- system.time({  
-	#				modelMoments = mM_i <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
-	#			})
-	#}
-	mM <- lapply(1:nsims, function(isim) 
+	ans <- lapply(1:nsims, function(isim) 
 			{
 				solve.model.set.fgy(parms)
 				#timeResolution = 50; discretizeRates=TRUE; fgyResolution = 100; integrationMethod = 'rk4'
 				calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4');
 			})
-	list(mM=mM)	
+	ans
 }
 ################################################################################################
 cg.sde.comparison.plots3<- function(heights, eM, mM, dir.name)
@@ -319,8 +312,24 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0,
 				pseudo.data$distr			<- calculate.cluster.size.distr.from.tree(pseudo.data$bdt, distr.heights)
 				tmp			 				<- calculate.cluster.size.moments.from.tree(pseudo.data$bdt, bdt.heights)				
 				pseudo.data$eMi 			<- tmp$Mi
-				pseudo.data$eMij 			<- tmp$Mij
-				pseudo.data
+				pseudo.data$eMij 			<- tmp$Mij				
+				tmp							<- lapply( seq_len(parms$mM.replicate), function(b)
+					{
+						#	get moments for new model solution to F G Y
+						solve.model.set.fgy(parms)				
+						tmp					<- calculate.cluster.size.moments.from.model(parms$sampleTime, pseudo.data$sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+						#	store moments as data.table
+						tmp$Mi				<- cbind( as.data.table(t( tmp$Mi )), height=tmp$heights, replicate=b )				
+						tmp2				<- sapply( seq_len( dim(tmp$Mij)[3] ), function(h)	tmp$Mij[,,h][upper.tri(tmp$Mij[,,1],diag=1)] )
+						rownames(tmp2)		<- sapply(1:m, function(i) paste('state.',i,1:m,sep=''))[upper.tri(tmp$Mij[,,1],diag=1)] 
+						tmp$Mij				<- cbind( as.data.table(t( tmp2 )), height=tmp$heights, replicate=b )
+						tmp
+					})
+				pseudo.data$mMi				<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mi	)
+				pseudo.data$mMi				<- do.call('rbind',pseudo.data$mMi	)
+				pseudo.data$mMij			<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mij	)
+				pseudo.data$mMij			<- do.call('rbind',pseudo.data$mMij	)
+				pseudo.data				
 			})
 	pseudo.datasets	
 }
@@ -770,7 +779,7 @@ cg.sde.get.pseudodata<- function()
 	#parameter template
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=2e5, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
-								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25)	
+								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25, mM.replicate= 25)	
 	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
 	
 	#bits of the model that are varied

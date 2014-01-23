@@ -616,6 +616,7 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, FGY=NULL,
 #'
 calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates, FGY = NULL , maxTime=NA, minTime = NA, timeResolution = 50, discretizeRates=FALSE, fgyResolution = 100 , integrationMethod = 'adams')
 {
+	require(deSolve)
 	globalParms <- list( USE_DISCRETE_FGY = discretizeRates ,  INTEGRATIONMETHOD=integrationMethod )
 	if (!is.null(FGY)) { globalParms <- modifyList( globalParms, FGY) }
 	else {globalParms <- modifyList( globalParms, list( F. = F., G. = G., Y. = Y. ))} 
@@ -705,8 +706,8 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates, 
 	
 	# solve Xi Xj and Xij at same time, 3m variables, avoids approxfun nastiness
 	# solve second aggregated moment X2 & moments
-	Mij_h 		<- array(0, dim = c(m, m, timeResolution) )
-	Mi_h		<- matrix(0, m, timeResolution)
+	Mij_h 		<- array(0, dim = c(m, m, timeResolution), dimnames=list(paste('state',1:m,sep='.'),paste('state',1:m,sep='.'),c()) )
+	Mi_h		<- matrix(0, m, timeResolution,dimnames=list(paste('state',1:m,sep='.'),c()))
 	for (i in 1:m)
 	{ # first tip type
 		for (j in i:m)
