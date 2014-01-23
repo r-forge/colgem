@@ -784,6 +784,7 @@ calculate.cluster.size.distr.from.tree<- function(bdt, heights)
 #'
 calculate.cluster.size.moments.from.tree <- function(bdt, heights)
 {
+	require(data.table)
 # bdt : binaryDatedTree
 # heights : vector numeric, heights at which to calculate cluster sizes
 	m 		<- ncol( bdt$sampleStates )
