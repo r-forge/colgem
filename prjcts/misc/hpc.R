@@ -44,14 +44,16 @@ cg.cmd.hpccaller<- function(outdir, outfile, cmd)
 
 cg.pipeline.pseudodata<- function()
 {
-	sapply(1:12, function(i)
+	dummy<- sapply(1:12, function(i)
 			{
-				cmd		<- paste(HOME,'/startme.R', sep='')
-				cmd		<- paste(cmd, ' -exe=MOM.SDE.PSEUDODATA -i=',i, sep='')	
-				cmd		<- cg.cmd.hpcwrapper(cmd, hpc.walltime=6, hpc.mem='3800mb', hpc.nproc=1, hpc.q='pqeph')	
-				file	<- paste('cgpd',paste(strsplit(date(),split=' ')[[1]],collapse='_',sep=''),sep='.')	
-				cg.cmd.hpccaller( SCRIPT, file, cmd )
-				stop()
+				sapply(1:100, function(n)
+						{
+							cmd		<- paste(HOME,'/startme.R', sep='')
+							cmd		<- paste(cmd, ' -exe=MOM.SDE.PSEUDODATA -i=',i,' -n=',n, sep='')	
+							cmd		<- cg.cmd.hpcwrapper(cmd, hpc.walltime=0, hpc.mem='470mb', hpc.nproc=1, hpc.q='pqeph')	
+							file	<- paste('cgpd',paste(strsplit(date(),split=' ')[[1]],collapse='_',sep=''),sep='.')	
+							cg.cmd.hpccaller( SCRIPT, file, cmd )	
+						})				
 			})	
 }
 

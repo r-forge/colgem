@@ -286,7 +286,7 @@ cg.sde.varyparam<- function()
 	#with increasing gi:	depletion of susceptibles with gi~3. epidemic does not take off with gi~0.25, need at least 0.5
 }
 ################################################################################################
-cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50), distr.heights=seq(10, 50, length.out=50))
+cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.i=NA, bdt.heights=seq(0, 50, length.out=50), distr.heights=seq(10, 50, length.out=50), file=NA)
 {
 	#define model
 	INFECTEDNAMES 		<<- c('I0', 'I1', 'I2')
@@ -301,36 +301,59 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.heights=seq(0,
 	parms_truth		<<- parms	
 	FGYPARMS 		<<- parms_truth
 	
+	if(!is.na(file))
+	{
+		if( substr(file, nchar(file)-1,nchar(file))!='.R') stop("file expected to end in .R")
+		file	<- substr(file, 1, nchar(file)-2)
+	}
+	if(is.na(bdt.i))
+		bdt.i	<- seq_len(bdt.n)
 	#simulated btd.n pseudo data sets
-	pseudo.datasets	<- lapply(seq_len(bdt.n), function(i)
+	pseudo.datasets	<- lapply(bdt.i, function(i)
 			{
-				cat(paste('\nprocess bdt.n',i))
-				pseudo.data					<- solve.model.set.fgy(parms_truth)	
-				pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
-				pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
-				pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]
-				pseudo.data$bdt 			<- simulatedBinaryDatedTree(parms$sampleTime, pseudo.data$sampleStates, discretizeRates=TRUE)				
-				pseudo.data$distr			<- calculate.cluster.size.distr.from.tree(pseudo.data$bdt, distr.heights)
-				tmp			 				<- calculate.cluster.size.moments.from.tree(pseudo.data$bdt, bdt.heights)				
-				pseudo.data$eMi 			<- tmp$Mi
-				pseudo.data$eMij 			<- tmp$Mij				
-				tmp							<- lapply( seq_len(parms$mM.replicate), function(b)
-					{
-						#	get moments for new model solution to F G Y
-						solve.model.set.fgy(parms)				
-						tmp					<- calculate.cluster.size.moments.from.model(parms$sampleTime, pseudo.data$sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
-						#	store moments as data.table
-						tmp$Mi				<- cbind( as.data.table(t( tmp$Mi )), height=tmp$heights, replicate=b )				
-						tmp2				<- sapply( seq_len( dim(tmp$Mij)[3] ), function(h)	tmp$Mij[,,h][upper.tri(tmp$Mij[,,1],diag=1)] )
-						rownames(tmp2)		<- sapply(1:m, function(i) paste('state.',i,1:m,sep=''))[upper.tri(tmp$Mij[,,1],diag=1)] 
-						tmp$Mij				<- cbind( as.data.table(t( tmp2 )), height=tmp$heights, replicate=b )
-						tmp
-					})
-				pseudo.data$mMi				<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mi	)
-				pseudo.data$mMi				<- do.call('rbind',pseudo.data$mMi	)
-				pseudo.data$mMij			<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mij	)
-				pseudo.data$mMij			<- do.call('rbind',pseudo.data$mMij	)
-				pseudo.data				
+				if(!is.na(file))
+				{
+					file.bdt					<- paste(file,'_bdtn',i,'.R',sep='')
+					cat(paste("\ntry load ",file.bdt))
+					options(show.error.messages = FALSE, warn=1)		
+					readAttempt					<-try(suppressWarnings(load(file.bdt)))						
+					options(show.error.messages = TRUE)								
+				}	
+				if(inherits(readAttempt, "try-error"))
+				{	
+					cat(paste('\nprocess bdt.i',i))
+					pseudo.data					<- solve.model.set.fgy(parms_truth)	
+					pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
+					pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
+					pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]
+					pseudo.data$bdt 			<- simulatedBinaryDatedTree(parms$sampleTime, pseudo.data$sampleStates, discretizeRates=TRUE)				
+					pseudo.data$distr			<- calculate.cluster.size.distr.from.tree(pseudo.data$bdt, distr.heights)
+					tmp			 				<- calculate.cluster.size.moments.from.tree(pseudo.data$bdt, bdt.heights)				
+					pseudo.data$eMi 			<- tmp$Mi
+					pseudo.data$eMij 			<- tmp$Mij				
+					tmp							<- lapply( seq_len(parms$mM.replicate), function(b)
+						{
+							#	get moments for new model solution to F G Y
+							solve.model.set.fgy(parms)				
+							tmp					<- calculate.cluster.size.moments.from.model(parms$sampleTime, pseudo.data$sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+							#	store moments as data.table
+							tmp$Mi				<- cbind( as.data.table(t( tmp$Mi )), height=tmp$heights, replicate=b )				
+							tmp2				<- sapply( seq_len( dim(tmp$Mij)[3] ), function(h)	tmp$Mij[,,h][upper.tri(tmp$Mij[,,1],diag=1)] )
+							rownames(tmp2)		<- sapply(1:m, function(i) paste('state.',i,1:m,sep=''))[upper.tri(tmp$Mij[,,1],diag=1)] 
+							tmp$Mij				<- cbind( as.data.table(t( tmp2 )), height=tmp$heights, replicate=b )
+							tmp
+						})
+					pseudo.data$mMi				<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mi	)
+					pseudo.data$mMi				<- do.call('rbind',pseudo.data$mMi	)
+					pseudo.data$mMij			<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mij	)
+					pseudo.data$mMij			<- do.call('rbind',pseudo.data$mMij	)
+				}
+				if(!is.na(file))
+				{					
+					cat(paste('\nsave pseudo.data to',file.bdt))
+					save(pseudo.data, file=file.bdt)
+				}					
+				pseudo.data		
 			})
 	pseudo.datasets	
 }
@@ -766,13 +789,17 @@ cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution<- function()
 ################################################################################################
 cg.sde.get.pseudodata<- function()
 {	
-	index	<- NA
+	index	<- bdt.i	<- NA
 	if(exists("argv"))
 	{
 		tmp<- na.omit(sapply(argv,function(arg)
 						{	switch(substr(arg,2,2),
 									i= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
 		if(length(tmp)>0) index<- tmp[1]
+		tmp<- na.omit(sapply(argv,function(arg)
+						{	switch(substr(arg,2,2),
+									n= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
+		if(length(tmp)>0) bdt.i<- tmp[1]
 	}	
 	
 	my.mkdir(HOME, 'MOMSDE' )
@@ -780,7 +807,7 @@ cg.sde.get.pseudodata<- function()
 	#parameter template
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=2e5, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
-								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25, mM.replicate= 25)	
+								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25, mM.replicate= 100)	
 	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
 	
 	#bits of the model that are varied
@@ -798,11 +825,14 @@ cg.sde.get.pseudodata<- function()
 			{
 				cat(paste("\nprocess gi=",parms.vary[i,'gi'],"bf=",parms.vary[i,'bf']))
 				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
-				parms			<-  parms.template
-				pseudo.datasets	<- cg.sde.get.pseudodata.for.param(parms, bdt.n= 2, bdt.heights=seq(0, 50, length.out=50))
-				file			<- paste(dir.name,'/',"pseudodata.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')				
-				cat(paste("\nsave pseudo data sets to file=",file))
-				save(pseudo.datasets, parms, file=file)				
+				parms			<- parms.template
+				file			<- paste(dir.name,'/',"pseudodata.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')
+				pseudo.datasets	<- cg.sde.get.pseudodata.for.param(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50), bdt.i=bdt.i, file=file)
+				if(is.na(bdt.i))
+				{
+					cat(paste("\nsave pseudo data sets to file=",file))
+					save(pseudo.datasets, parms, file=file)
+				}
 			})			
 }
 ################################################################################################
