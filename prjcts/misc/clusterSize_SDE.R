@@ -244,7 +244,10 @@ cg.sde<- function()
 	#cg.sde.get.pseudodata()
 	
 	#	evaluate different pseudo likelihoods to the empirical cluster size distributions
-	cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution()
+	#cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution()
+	
+	#	evaluate different pseudo likelihoods to the eMis
+	cg.sde.eval.pseudolkl.to.eM.distribution()
 }
 ################################################################################################
 cg.sde.varyparam<- function()
@@ -347,15 +350,111 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.i=NA, bdt.heig
 					pseudo.data$mMi				<- do.call('rbind',pseudo.data$mMi	)
 					pseudo.data$mMij			<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mij	)
 					pseudo.data$mMij			<- do.call('rbind',pseudo.data$mMij	)
-				}
-				if(!is.na(file))
-				{					
-					cat(paste('\nsave pseudo.data to',file.bdt))
-					save(pseudo.data, file=file.bdt)
-				}					
+					if(!is.na(file))
+					{					
+						cat(paste('\nsave pseudo.data to',file.bdt))
+						save(pseudo.data, file=file.bdt)
+					}	
+				}								
 				pseudo.data		
 			})
 	pseudo.datasets	
+}
+################################################################################################
+cg.sde.get.mM.for.param<- function(parms, file=NA)
+{
+	#define model
+	INFECTEDNAMES 		<<- c('I0', 'I1', 'I2')
+	tmp					<-  cg.sde.define()
+	F.skeleton			<<- tmp$F.skeleton
+	G.					<<- tmp$G
+	step.x				<<- tmp$step.x
+	solve.model.set.fgy	<-  tmp$solve.model.set.fgy
+	
+	#set up parameters
+	m				<-  parms$m
+	parms_truth		<<- parms	
+	FGYPARMS 		<<- parms_truth
+	
+	if(!is.na(file))
+	{
+		if( substr(file, nchar(file)-1,nchar(file))!='.R') stop("file expected to end in .R")
+		cat(paste("\ntry load ",file))
+		options(show.error.messages = FALSE, warn=1)		
+		readAttempt					<-try(suppressWarnings(load(file)))						
+		options(show.error.messages = TRUE)								
+	}
+	if(is.na(file) | inherits(readAttempt, "try-error"))
+	{
+		pseudo.data					<- solve.model.set.fgy(parms_truth)	
+		pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
+		pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
+		pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]
+		
+		tmp							<- lapply( seq_len(parms$mM.replicate), function(b)
+				{
+					#	get moments for new model solution to F G Y
+					solve.model.set.fgy(parms)				
+					
+					tmp					<- calculate.cluster.size.moments.from.model(parms$sampleTime, pseudo.data$sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+					#	store moments as data.table
+					tmp$Mi				<- cbind( as.data.table(t( tmp$Mi )), height=tmp$heights, replicate=b )				
+					tmp2				<- sapply( seq_len( dim(tmp$Mij)[3] ), function(h)	tmp$Mij[,,h][upper.tri(tmp$Mij[,,1],diag=1)] )
+					rownames(tmp2)		<- sapply(1:m, function(i) paste('state.',i,1:m,sep=''))[upper.tri(tmp$Mij[,,1],diag=1)] 
+					tmp$Mij				<- cbind( as.data.table(t( tmp2 )), height=tmp$heights, replicate=b )
+					tmp
+				})
+		df.mMi				<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mi	)
+		df.mMi				<- do.call('rbind',df.mMi	)
+		df.mMij			<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mij	)
+		df.mMij			<- do.call('rbind',df.mMij	)				
+		
+		#
+		#	clean up
+		#
+		
+		#	clean up df.mMi: remove numerical inaccuracies in mMi
+		cmd		<- paste('is.nan(state.',1:m,')',' | ','abs(state.',1:m,')<',1e-6,sep='', collapse=' | ')	
+		cmd		<- paste('df.mMi[, which(',cmd,')]',sep='')
+		tmp		<- eval( parse(text=cmd) )
+		set(df.mMi, tmp, 'height', NA)				
+		cmd		<- paste('{ ok.last= tail(which(!is.na(height)),1);    list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+		cmd		<- paste('df.mMi[,',cmd,', by="replicate",]')
+		df.mMi	<- eval( parse(text=cmd) )
+		
+		#	remove negative changes in mMi -- ONLY FOR HOMOCHRONEOUS SAMPLING AND NONDECREASING POPSIZE
+		cmd		<- paste('state.',1:m,'<=',0,sep='', collapse=' | ')	
+		cmd		<- paste('df.mMi[, which(',cmd,')]',sep='')
+		tmp		<- eval( parse(text=cmd) )
+		set(df.mMi, tmp, 'height', NA)				
+		cmd		<- paste('{ ok.last= tail(which(!is.na(height)),1);    list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+		cmd		<- paste('df.mMi[,',cmd,', by="replicate",]')
+		df.mMi	<- eval( parse(text=cmd) )
+		
+		#
+		#	get delta eMi and mMi
+		#
+				
+		df.mMi[, dummy:= -height]		
+		setkey(df.mMi, replicate, dummy)
+		cmd		<- paste('state.',1:m,'= -diff(state.',1:m,')',sep='', collapse=',')
+		cmd		<- paste('df.mMi[, list(',cmd,', height=height[-1]), by="replicate"]',sep='')
+		df.mMid	<- eval( parse(text=cmd) )
+		setkey(df.mMid, replicate, height)
+		
+		
+		sim			<- list()
+		sim$parms	<- parms		
+		sim$mMi		<- df.mMi
+		sim$mMid	<- df.mMid
+		sim$mMij	<- df.mMij										
+	}
+	if(!is.na(file))
+	{					
+		cat(paste('\nsave sim to',file))
+		save(sim, file=file)
+	}
+	sim	
 }
 ################################################################################################
 # plot distribution of cluster sizes for each tree height, 
@@ -596,7 +695,304 @@ cg.sde.tiptypenumber.pseudolkl.for.param<- function(pseudo.datasets, heights, re
 		save(df.test, file=file.r)
 	}
 	df.test
-}	
+}
+################################################################################################
+cg.sde.eM.pseudolkl.fit1DmMid.plot.pvalue<- function(df.fit, file)
+{
+	library(RColorBrewer)
+	pseudolkls	<- unique( df.fit[, distr] )
+	methods		<- unique( df.fit[, method] )
+	parms.vary	<- unique( subset(df.fit, select=c(gi,bf)) )
+	states		<- unique( df.fit[,state] )
+	cols		<- brewer.pal(length(states), 'Set2')
+	
+	pdf(file=file, w=10, h=6)
+	par(mfcol=c(length(pseudolkls),length(states)))
+	par(mar=c(4,4,4,0.5))
+	for(p in seq_len(nrow(parms.vary)))
+	{
+		cat(paste('\nprocess parameters #',p))
+		i<- 2			
+		dummy		<- sapply(seq_along(states), function(k)
+				{
+					dummy<- sapply(seq_along(pseudolkls), function(j)
+							{							
+								#plot moment p values							
+								plot(1,1,type='n',bty='n',xlab='height',ylab='p-value',main=paste('(',parms.vary[p,gi],', ',parms.vary[p,bf],') ',pseudolkls[j],', ',methods[i], sep=''),ylim=c(0,1),xlim=range(df.fit[,height]))
+								tmp			<- c(parms.vary[p,gi], parms.vary[p,bf]) 
+								tmp			<- subset(df.fit, gi==tmp[1] & bf==tmp[2] &  distr==pseudolkls[j] & method==methods[i] & state==states[k])
+								sapply(unique(tmp[,bdt]), function(r)
+										{										
+											tmp			<- subset(tmp, bdt==r)									
+											points(tmp[,height],tmp[,p],col=util.fade.col(cols[k],0.3), pch=18)									
+										})
+								legend('topleft', legend=paste('state',states[k]),fill=cols[k],border=NA, bty='n')
+								#add overall p values
+								tmp			<- c(parms.vary[p,gi], parms.vary[p,bf])
+								tmp			<- subset(df.fit, gi==tmp[1] & bf==tmp[2] &  distr==pseudolkls[j] & method==methods[1] & state==states[k])
+								lines(tmp[,height],tmp[,p],pch=18)
+							})	
+				})						
+	}
+	dev.off()
+}
+################################################################################################
+cg.sde.eM.pseudolkl.fit1DmMid<- function(df.obs, df.sim, file=NA)		
+{
+	require(nortest)
+	heights			<- unique( df.obs[, height] )	
+	state.cols.obs	<- which( grepl('state',colnames( df.obs )) ) 
+	m				<- length( state.cols.obs )
+	plot		<- !is.na(file)
+	if(plot)
+	{
+		pdf(file=file, w=8, h=4)
+		par(mfcol=c(1,m))
+		cols		<- brewer.pal(3, 'Set1')[1:2]			
+		ltys		<- c(1,1)
+		lwds		<- rep(1.5,1.5)
+		legend.txt	<- c('Normal mo','LogNormal mo')
+	}		
+	df.test<- lapply( seq_along(heights), function(ih)
+			{
+				df.test	<- lapply( seq_len(m), function(j)
+						{
+							su.obs	<- unclass( subset(df.obs, height==heights[ih])[,state.cols.obs[j],with=0] )[[1]]									
+							su.sim	<- paste("subset(df.sim, height==heights[ih], select=c('bdt','replicate','state.",j,"') )",sep='')
+							su.sim	<- eval( parse(text=su.sim) )
+							setnames(su.sim,3,'state')
+							hist.obs<- hist( su.obs, breaks=15, plot=FALSE )
+							if(plot)	plot(hist.obs, freq=FALSE, main=paste('height=',round(heights[ih],d=1)), xlab=paste('eM',j), xlim=range(su.obs), ylim=c(0, max(hist.obs$density)*1.4), col='gray50', bty='n', border=NA)																										
+							#	overall test for distribution of eMi							
+							ans		<- data.table( height=heights[ih], state=j, bdt=1, distr='n', method='sf', p= sf.test(su.obs)$p.value )									
+							ans		<- rbind(ans, data.table( height=heights[ih], state=j, bdt=1, distr='ln', method='sf', p= sf.test(log(su.obs))$p.value ))
+							#	tests for distribution of eMi with moments specified by mMi 
+							#	normal									
+							tmp			<- su.sim[,{
+										state.m		<- mean(state)
+										state.sd	<- sd(state)												
+										if(plot)	lines(hist.obs$mids, dnorm(hist.obs$mids, state.m, state.sd), col=util.fade.col(cols[1],0.25), lty=ltys[1], lwd=lwds[1])
+										list(distr='n', method='mo-B',p= suppressWarnings(ks.test(su.obs, 'pnorm', mean=state.m, sd=state.sd)$p.value))	
+									},by='bdt']
+							ans		<- rbind(ans, cbind(height=heights[ih], state=j, tmp))				
+							#	log normal									
+							tmp			<- su.sim[,{
+										state.m		<- mean(log(state))
+										state.sd	<- sd(log(state))												
+										if(plot)	lines(hist.obs$mids, dlnorm(hist.obs$mids, state.m, state.sd), col=util.fade.col(cols[2],0.25), lty=ltys[2], lwd=lwds[2])
+										list(distr='ln', method='mo-B',p= suppressWarnings(ks.test(su.obs, 'plnorm', meanlog=state.m, sdlog=state.sd)$p.value))	
+									},by='bdt']
+							ans		<- rbind(ans, cbind(height=heights[ih], state=j, tmp))				
+							ans
+						})	
+				if(plot)	legend('topright', bty='n', border=NA, lty=ltys, fill=cols, legend=legend.txt)
+				do.call('rbind',df.test)					
+			})
+	df.test	<- do.call('rbind',df.test)
+	if(plot)	dev.off()
+	df.test
+}
+################################################################################################
+cg.sde.eM.pseudolkl.plot.eMi.distr<- function(df.eMi, file=NA, lab='eM', method='2D')		
+{
+	if(!method%in%c('2D','1D'))	stop('unexpected method')
+	heights		<- unique( df.eMi[, height] )	
+	state.cols	<- which( grepl('state',colnames( df.eMi )) ) 
+	m			<- length( state.cols )
+	plot		<- !is.na(file)
+	if(plot)
+	{
+		pdf(file=file, w=12, h=4)
+		par(mfcol=c(1,m))
+		cols		<- brewer.pal(3, 'Set1')
+		cols		<- rep(cols,each=2)
+		ltys		<- c(1,2,1,2,1,2)
+		lwds		<- rep(1.5,6)
+		legend.txt	<- c('Poisson mle','Poisson mo','Geometric mle','Geometric mo','NegBin mle', 'NegBin mo')
+	}
+	par(mfcol=c(1,m))
+	dummy<- lapply( seq_along(heights), function(ih)
+			{
+				if(method=='1D')
+				{
+					dummy	<- sapply( seq_len(m), function(j)
+							{
+								tmp		<- unclass( subset(df.eMi, height==heights[ih])[,state.cols[j],with=0] )[[1]]
+								hist.x	<- hist( tmp, main=paste('height=',round(heights[ih],d=1)), breaks=15, xlab=paste('eM',j), freq=FALSE, col='gray50', bty='n', border=NA, plot=plot )					
+							})
+				}
+				if(method=='2D')
+				{
+					state.c	<- t( combn(3,2) ) 					
+					dummy	<- sapply( seq_len(nrow(state.c)), function(j)
+							{
+								tmpx	<- unclass( subset(df.eMi, height==heights[ih])[,state.cols[state.c[j,1]],with=0] )[[1]]
+								tmpy	<- unclass( subset(df.eMi, height==heights[ih])[,state.cols[state.c[j,2]],with=0] )[[1]]
+								plot(tmpx, tmpy, main=paste('height=',round(heights[ih],d=1)), xlab=paste(lab,state.c[j,1]), ylab=paste(lab,state.c[j,2]), bty='n' )															
+							})
+				}
+			})
+	if(plot)	dev.off()
+}
+################################################################################################
+cg.sde.eM.pseudolkl.plot.eMid.mMid.distr<- function(df.obs, df.sim, file,lab='delta eM')
+{
+	require(RColorBrewer)
+	heights			<- unique( df.obs[, height] )	
+	state.cols.obs	<- which( grepl('state',colnames( df.obs )) )
+	state.cols.sim	<- which( grepl('state',colnames( df.sim )) )
+	m				<- length( state.cols.obs )
+	plot		<- !is.na(file)
+	if(plot)
+	{
+		pdf(file=file, w=8, h=4)
+		par(mfcol=c(1,m))
+		cols		<- brewer.pal(3, 'Set1')[1]									
+		legend.txt	<- c('calculated mo under theta0')
+	}		
+	state.c	<- t( combn(3,2) )
+	dummy	<- lapply( seq_along(heights), function(ih)
+			{					 					
+				dummy	<- sapply( seq_len(nrow(state.c)), function(j)
+						{
+							tmpx	<- unclass( subset(df.sim, height==heights[ih])[,state.cols.sim[state.c[j,1]],with=0] )[[1]]
+							tmpy	<- unclass( subset(df.sim, height==heights[ih])[,state.cols.sim[state.c[j,2]],with=0] )[[1]]
+							plot(log(tmpx), log(tmpy), main=paste('height=',round(heights[ih],d=1)), xlab=paste('log',lab,state.c[j,1]), ylab=paste('log',lab,state.c[j,2]), bty='n', col=util.fade.col(cols[1],0.2), pch=18 )
+							
+							tmpx	<- unclass( subset(df.obs, height==heights[ih])[,state.cols.obs[state.c[j,1]],with=0] )[[1]]
+							tmpy	<- unclass( subset(df.obs, height==heights[ih])[,state.cols.obs[state.c[j,2]],with=0] )[[1]]
+							points(log(tmpx), log(tmpy) )																
+						})
+				legend('topleft', bty='n', border=NA, fill=cols, legend=legend.txt)								
+			})
+	if(plot) dev.off()
+}
+################################################################################################
+cg.sde.eM.pseudolkl.for.param<- function(pseudo.datasets, resume=1, file.r=NA, file.pdf=NA)
+{
+	if(resume && !is.na(file.r))
+	{
+		cat(paste("\ntry load ",paste(file.r,'_fit1D.R',sep='')))
+		options(show.error.messages = FALSE, warn=1)		
+		readAttempt<-try(suppressWarnings(load(paste(file.r,'_fit1D.R',sep=''))))						
+		options(show.error.messages = TRUE)								
+	}	
+	if(!resume || inherits(readAttempt, "try-error"))
+	{
+		library(RColorBrewer)
+		
+		m		<- nrow( pseudo.datasets[[1]]$eMi )
+		heights	<- unique( pseudo.datasets[[1]]$mMi[,height] )
+		
+		#
+		#	collate data structures
+		#
+		
+		#collect empirical first moments over bdt replicates and for all heights
+		df.eMi	<- lapply(seq_along(pseudo.datasets), function(k)
+				{					
+					tmp				<- pseudo.datasets[[k]]$eMi
+					rownames(tmp)	<- paste('state',1:m,sep='.')					
+					cbind( as.data.table(t( tmp )), height=heights, bdt=k )				
+				})
+		df.eMi	<- do.call('rbind', df.eMi)
+		#collect empirical second moments over bdt replicates and for all heights
+		df.eMij	<- lapply(seq_along(pseudo.datasets), function(k)
+				{										
+					tmp				<- sapply( seq_len( dim(pseudo.datasets[[k]]$eMij)[3] ), function(h)	pseudo.datasets[[k]]$eMij[,,h][upper.tri(pseudo.datasets[[k]]$eMij[,,1],diag=1)] )
+					rownames(tmp)	<- sapply(1:m, function(i) paste('state.',i,1:m,sep=''))[upper.tri(pseudo.datasets[[k]]$eMij[,,1],diag=1)] 
+					cbind( as.data.table(t( tmp )), height=heights, bdt=k )								
+				})
+		df.eMij	<- do.call('rbind', df.eMij)
+		#collect calculated first moments under the true parameter theta0 over bdt replicates and 100 replicates for each bdt and for all heights
+		df.mMi	<- lapply(seq_along(pseudo.datasets), function(k)
+				{					
+					cbind( pseudo.datasets[[k]]$mMi, bdt=k )										
+				})
+		df.mMi	<- do.call('rbind', df.mMi)
+		#collect calculated second moments under the true parameter theta0 over bdt replicates and 100 replicates for each bdt and for all heights
+		df.mMij	<- lapply(seq_along(pseudo.datasets), function(k)
+				{					
+					cbind( pseudo.datasets[[k]]$mMij, bdt=k )										
+				})
+		df.mMij	<- do.call('rbind', df.mMi)
+		
+		#
+		#	clean up
+		#
+				
+		#	clean up df.mMi: remove numerical inaccuracies in mMi
+		cmd		<- paste('is.nan(state.',1:m,')',' | ','abs(state.',1:m,')<',1e-6,sep='', collapse=' | ')	
+		cmd		<- paste('df.mMi[, which(',cmd,')]',sep='')
+		tmp		<- eval( parse(text=cmd) )
+		set(df.mMi, tmp, 'height', NA)				
+		cmd		<- paste('{ ok.last= tail(which(!is.na(height)),1);    list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+		cmd		<- paste('df.mMi[,',cmd,', by=c("bdt","replicate"),]')
+		df.mMi	<- eval( parse(text=cmd) )
+		
+		#	remove negative changes in mMi -- ONLY FOR HOMOCHRONEOUS SAMPLING AND NONDECREASING POPSIZE
+		cmd		<- paste('state.',1:m,'<=',0,sep='', collapse=' | ')	
+		cmd		<- paste('df.mMi[, which(',cmd,')]',sep='')
+		tmp		<- eval( parse(text=cmd) )
+		set(df.mMi, tmp, 'height', NA)				
+		cmd		<- paste('{ ok.last= tail(which(!is.na(height)),1);    list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+		cmd		<- paste('df.mMi[,',cmd,', by=c("bdt","replicate"),]')
+		df.mMi	<- eval( parse(text=cmd) )
+		
+		#
+		#	get delta eMi and mMi
+		#
+		
+		df.eMi[, dummy:= -height]
+		setkey(df.eMi, bdt, dummy)
+		cmd		<- paste('state.',1:m,'= -diff(state.',1:m,')',sep='', collapse=',')
+		cmd		<- paste('df.eMi[, list(',cmd,', height=height[-1]), by="bdt"]',sep='')
+		df.eMid	<- eval( parse(text=cmd) )
+		setkey(df.eMid, bdt, height)
+				
+		df.mMi[, dummy:= -height]		
+		setkey(df.mMi, bdt, replicate, dummy)
+		cmd		<- paste('state.',1:m,'= -diff(state.',1:m,')',sep='', collapse=',')
+		cmd		<- paste('df.mMi[, list(',cmd,', height=height[-1]), by=c("bdt","replicate")]',sep='')
+		df.mMid	<- eval( parse(text=cmd) )
+		setkey(df.mMid, bdt, replicate, height)
+
+		if(0)	#	check if deltas make sense
+		{
+			ih<- 20
+			subset( df.eMi, height==heights[ih])[, list(su1=summary(state.1), su2=summary(state.2), su3=summary(state.3), info=names(summary(state.1)))]		
+			subset( df.mMi, height==heights[ih])[, list(su1=summary(state.1), su2=summary(state.2), su3=summary(state.3), info=names(summary(state.1)))]
+			subset( df.eMid, height==heights[ih])[, list(su1=summary(state.1), su2=summary(state.2), su3=summary(state.3), info=names(summary(state.1)))]
+			subset( df.mMid, height==heights[ih] & replicate==1)[, list(su1=summary(state.1), su2=summary(state.2), su3=summary(state.3), info=names(summary(state.1)))]
+		}
+		if(0)	#	a few diagnostic plots
+		{
+			cg.sde.eM.pseudolkl.plot.eMi.distr(df.eMi, lab='eM', method='2D', file=paste(file.pdf, '_eMi_2D.pdf',sep=''))
+			cg.sde.eM.pseudolkl.plot.eMi.distr(df.eMid, lab='delta eM', method='1D', file=paste(file.pdf, '_eMid_1D.pdf',sep='') )
+			cg.sde.eM.pseudolkl.plot.eMi.distr(df.eMid, lab='delta eM', method='2D', file=paste(file.pdf, '_eMid_2D.pdf',sep='') )
+		}
+		# compare different 1D pseudo lkls for each tree height
+		df.fit1d	<- cg.sde.eM.pseudolkl.fit1DmMid(df.eMid, df.mMid, file=paste(file.pdf, '_eMid_1D_fit.pdf',sep=''))
+		
+				
+		cg.sde.eM.pseudolkl.plot.eMid.mMid.distr(df.eMid, df.mMid, paste(file.pdf, '_eMid_2D.pdf',sep=''), lab='delta eM')
+			
+
+		
+		
+					
+		
+		
+		
+		
+		
+		
+		
+		cat(paste("\nsave df.fit to ",paste(file.r,'_fit1D.R',sep='')))
+		save(df.eMi, df.mMi, df.eMid, df.mMid, df.eMij, df.mMij, df.fit1d, file=paste(file.r,'_fit1D.R',sep=''))		
+	}
+	df.fit1d
+}
 ################################################################################################
 cg.sde.tiptypenumber.pseudolkl.for.param2<- function(pseudo.datasets, heights, resume=1, file.r=NA, file.pdf=NA)
 {
@@ -698,6 +1094,73 @@ cg.sde.tiptypenumber.pseudolkl.plot.pvalue2<- function(df.test, file)
 	dev.off()
 }
 ################################################################################################
+cg.sde.eval.pseudolkl.to.eM.distribution<- function()
+{
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
+	S0				<- 5e3
+	S0				<- 2e5
+	phi				<- 0.5
+	phi				<- 0.25
+	#parameter template
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+			S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
+			times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+	run.old.version	<- 0
+	resume			<- 1
+	heights			<- seq(10, 50, length.out=50)
+	
+	if(resume)
+	{
+		file.r	<- 	paste(dir.name,'/',"pseudodistr.potential.lkl.S=",parms.template$S_0,"_fit1D.R",sep='')
+		cat(paste("\ntry load ",file.r))
+		options(show.error.messages = FALSE, warn=1)		
+		readAttempt<-try(suppressWarnings(load(file.r)))						
+		options(show.error.messages = TRUE)								
+	}	
+	if(!resume || inherits(readAttempt, "try-error"))
+	{
+		#bits of the model that are varied
+		gi			<- c(0.5, 1, 3) 			#avg duration of I0
+		bf			<- c(2,4,8,16) 				#dampening of beta0
+		parms.vary	<- expand.grid(gi=gi, bf= bf)	
+		parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
+		
+		df.fit		<- lapply(seq_len(nrow(parms.vary)),function(i)
+				{
+					i<- 8
+					cat(paste('\nprocess',i))
+					# load pseudo data set
+					parms								<- parms.template
+					parms[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
+					file								<- paste("pseudodata.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')
+					file								<- paste(dir.name,file,sep='/')
+					if( is.na(file.info(file)$size) )
+						return(data.table(height=numeric(0), t.stat=numeric(0), p=numeric(0), state=numeric(0), replicate=numeric(0), distr=character(0), method=character(0), gi=numeric(0), bf=numeric(0)))
+					cat(paste("\nload file=",file))
+					tmp									<- load(file)
+					# get pseudo.lkl p-values of potential pseudo lkl densities to the empirical density
+					
+					file.r			<- paste(dir.name,'/',"pseudo.eM.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],sep='')								
+					file.pdf		<- paste(dir.name,'/',"pseudo.eM.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],sep='')				
+					df.fit			<- cg.sde.eM.pseudolkl.for.param(pseudo.datasets, resume=0, file.r=file.r, file.pdf=file.pdf)
+					df.fit[, gi:=parms.vary[i,'gi']]
+					df.fit[, bf:=parms.vary[i,'bf']]
+					df.fit
+				})
+		df.fit	<- do.call('rbind', df.fit)
+		file.r	<- 	paste(dir.name,'/',"pseudo.eM.lkl.S=",parms.template$S_0,"_fit1D.R",sep='')
+		cat(paste('\nsave df.fit to',file.r))
+		save(df.fit, file=file.r)	
+	}
+		
+	
+	file.pdf	<- 	paste(dir.name,'/',"pseudo.eM.lkl.S=",parms.template$S_0,"_fit1Dpvalue.pdf",sep='')
+	cg.sde.eM.pseudolkl.fit1DmMid.plot.pvalue(df.fit, file.pdf)	
+
+}
+################################################################################################
 cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution<- function()
 {
 	my.mkdir(HOME, 'MOMSDE' )
@@ -787,53 +1250,66 @@ cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution<- function()
 	#	for every single bdt, the variance is hard to estimate close to the tips, need h>35 or more tips
 }
 ################################################################################################
-cg.sde.get.pseudodata<- function()
+cg.sde.get.mM<- function()
 {	
-	index	<- bdt.i	<- NA
+	index		<- NA
 	if(exists("argv"))
 	{
 		tmp<- na.omit(sapply(argv,function(arg)
 						{	switch(substr(arg,2,2),
 									i= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
-		if(length(tmp)>0) index<- tmp[1]
-		tmp<- na.omit(sapply(argv,function(arg)
-						{	switch(substr(arg,2,2),
-									n= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
-		if(length(tmp)>0) bdt.i<- tmp[1]
+		if(length(tmp)>0) index<- tmp[1]						
 	}	
 	
 	my.mkdir(HOME, 'MOMSDE' )
 	dir.name		<- paste(HOME, 'MOMSDE',sep='/')	
-	#parameter template
+	n.parms			<- 2e4
+	resume			<- 1
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=2e5, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
 								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25, mM.replicate= 100)	
 	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+	file.parms		<- paste(dir.name, '/pseudo.mM.S=',parms.template$S_0,'_parms.R', sep='')
+	file.mM			<- paste(dir.name, '/pseudo.mM.S=',parms.template$S_0,'_mM.R', sep='')
 	
-	#bits of the model that are varied
-	gi			<- c(0.5, 1, 3) 			#avg duration of I0
-	bf			<- c(2,4,8,16) 				#dampening of beta0
-	parms.vary	<- expand.grid(gi=gi, bf= bf)	
-	parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
-	
+	#
+	#	create parms.vary if necessary
+	#
+	if(resume)
+	{		
+		cat(paste("\ntry load ",file.parms))
+		options(show.error.messages = FALSE, warn=1)		
+		readAttempt	<- try(suppressWarnings(load(file.parms)))						
+		options(show.error.messages = TRUE)								
+	}	
+	if(!resume || inherits(readAttempt, "try-error"))	
+	{
+		gi			<- round(runif(n.parms, 0.2, 4), d=4) 				#avg duration of I0
+		bf			<- round(runif(n.parms, 1,16), d=2) 				#dampening of beta0
+		parms.vary	<- unique( cbind(gi=gi, bf= bf), MARGIN=1 )	
+		parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
+		save(parms.vary, file=file.parms)
+	}
+		
+	#	if moments are calculated in parallel, reduce parms.vary	
 	if(!is.na(index))
 	{
 		parms.vary	<- parms.vary[index,,drop=0]
 	}
-	#generate pseudo data sets
-	dummy	<- lapply(seq_len(nrow(parms.vary)), function(i)
+	#	calculate moments
+	sims	<- lapply(seq_len(nrow(parms.vary)), function(i)
 			{
 				cat(paste("\nprocess gi=",parms.vary[i,'gi'],"bf=",parms.vary[i,'bf']))
 				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
 				parms			<- parms.template
-				file			<- paste(dir.name,'/',"pseudodata.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')
-				pseudo.datasets	<- cg.sde.get.pseudodata.for.param(parms, bdt.n= 1e2, bdt.heights=seq(0, 50, length.out=50), bdt.i=bdt.i, file=file)
-				if(is.na(bdt.i))
-				{
-					cat(paste("\nsave pseudo data sets to file=",file))
-					save(pseudo.datasets, parms, file=file)
-				}
-			})			
+				file			<- paste(dir.name,'/',"pseudo.mM.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')				
+				sim				<- cg.sde.get.mM.for.param(parms, file=file)				
+			})	
+	if(is.na(index))
+	{
+		cat(paste("\nsave pseudo data sets to file=",file.mM))
+		save(sims, file=file.mM)		
+	}
 }
 ################################################################################################
 cg.sde.nsim.mM<- function()

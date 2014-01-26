@@ -220,7 +220,8 @@ if(length(args))
 					MAKE.DOCUMENTATION		 = "my.make.documentation",
 					MOM.ODE					 = "colgem.project.moments.for.odesystem",
 					MOM.SDE					 = "cg.sde",
-					MOM.SDE.PSEUDODATA		 = "cg.sde.get.pseudodata"
+					MOM.SDE.PSEUDODATA		 = "cg.sde.get.pseudodata",
+					MOM.SDE.SIMMO			 = "cg.sde.get.mM"
 					)
 	}
 	tmp<- na.omit(sapply(args,function(arg)

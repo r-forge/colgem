@@ -42,6 +42,19 @@ cg.cmd.hpccaller<- function(outdir, outfile, cmd)
 	
 }
 
+cg.pipeline.sim.mM<- function()
+{
+	dummy<- sapply(1:10000, function(n)
+	#dummy<- sapply(10000:19997, function(n)
+		{
+			cmd		<- paste(HOME,'/startme.R', sep='')
+			cmd		<- paste(cmd, ' -exe=MOM.SDE.SIMMO -i=',i,sep='')	
+			cmd		<- cg.cmd.hpcwrapper(cmd, hpc.walltime=0, hpc.mem='470mb', hpc.nproc=1, hpc.q='pqeph')	
+			file	<- paste('cgsm',paste(strsplit(date(),split=' ')[[1]],collapse='_',sep=''),sep='.')	
+			cg.cmd.hpccaller( SCRIPT, file, cmd )	
+		})				
+}
+
 cg.pipeline.pseudodata<- function()
 {
 	dummy<- sapply(1:12, function(i)
@@ -59,5 +72,6 @@ cg.pipeline.pseudodata<- function()
 
 cg.pipeline<- function()
 {
-	cg.pipeline.pseudodata()
+	#cg.pipeline.pseudodata()
+	cg.pipeline.sim.mM()
 }
