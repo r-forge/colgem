@@ -418,8 +418,8 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 		cmd		<- paste('df.mMi[, which(',cmd,')]',sep='')
 		tmp		<- eval( parse(text=cmd) )
 		set(df.mMi, tmp, 'height', NA)				
-		cmd		<- paste('{ ok.last= tail(which(!is.na(height)),1);    list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
-		cmd		<- paste('df.mMi[,',cmd,', by="replicate",]')
+		cmd		<- paste('{ ok.last<- which(is.na(height));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));    list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+		cmd		<- paste('df.mMi[,',cmd,', by="replicate"]')
 		df.mMi	<- eval( parse(text=cmd) )
 		
 		#	remove negative changes in mMi -- ONLY FOR HOMOCHRONEOUS SAMPLING AND NONDECREASING POPSIZE
@@ -427,8 +427,8 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 		cmd		<- paste('df.mMi[, which(',cmd,')]',sep='')
 		tmp		<- eval( parse(text=cmd) )
 		set(df.mMi, tmp, 'height', NA)				
-		cmd		<- paste('{ ok.last= tail(which(!is.na(height)),1);    list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
-		cmd		<- paste('df.mMi[,',cmd,', by="replicate",]')
+		cmd		<- paste('{ ok.last<- which(is.na(height));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));    list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+		cmd		<- paste('df.mMi[,',cmd,', by="replicate"]')
 		df.mMi	<- eval( parse(text=cmd) )
 		
 		#
