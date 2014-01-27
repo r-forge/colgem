@@ -44,7 +44,7 @@ cg.cmd.hpccaller<- function(outdir, outfile, cmd)
 
 cg.pipeline.sim.mM<- function()
 {
-	dummy<- sapply(1:10000, function(n)
+	dummy<- sapply(7000:10000, function(n)
 	#dummy<- sapply(10000:19997, function(n)
 		{
 			cmd		<- paste(HOME,'/startme.R', sep='')

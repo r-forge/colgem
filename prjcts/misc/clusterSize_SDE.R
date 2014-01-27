@@ -363,6 +363,7 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.i=NA, bdt.heig
 ################################################################################################
 cg.sde.get.mM.for.param<- function(parms, file=NA)
 {
+	require(data.table)
 	#define model
 	INFECTEDNAMES 		<<- c('I0', 'I1', 'I2')
 	tmp					<-  cg.sde.define()
@@ -404,10 +405,11 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 					tmp$Mij				<- cbind( as.data.table(t( tmp2 )), height=tmp$heights, replicate=b )
 					tmp
 				})
-		df.mMi				<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mi	)
-		df.mMi				<- do.call('rbind',df.mMi	)
-		df.mMij			<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mij	)
-		df.mMij			<- do.call('rbind',df.mMij	)				
+		df.mMi		<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mi	)
+		df.mMi		<- do.call('rbind',df.mMi	)
+		df.mMi.raw	<- copy( df.mMi )
+		df.mMij		<- lapply( seq_along(tmp), function(b)	tmp[[b]]$Mij	)
+		df.mMij		<- do.call('rbind',df.mMij	)				
 		
 		#
 		#	clean up
@@ -444,8 +446,9 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 		
 		
 		sim			<- list()
-		sim$parms	<- parms		
+		sim$parms	<- parms			
 		sim$mMi		<- df.mMi
+		sim$mMi.raw	<- df.mMi.raw
 		sim$mMid	<- df.mMid
 		sim$mMij	<- df.mMij										
 	}
@@ -1299,7 +1302,7 @@ cg.sde.get.mM<- function()
 	#	calculate moments
 	sims	<- lapply(seq_len(nrow(parms.vary)), function(i)
 			{
-				cat(paste("\nprocess gi=",parms.vary[i,'gi'],"bf=",parms.vary[i,'bf']))
+				cat(paste("\nprocess gi=",parms.vary[i,'gi'],", bf=",parms.vary[i,'bf'],', i=',i))
 				parms.template[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
 				parms			<- parms.template
 				file			<- paste(dir.name,'/',"pseudo.mM.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')				
