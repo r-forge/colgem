@@ -44,8 +44,8 @@ cg.cmd.hpccaller<- function(outdir, outfile, cmd)
 
 cg.pipeline.sim.mM<- function()
 {
-	dummy<- sapply(7000:10000, function(n)
-	#dummy<- sapply(10000:19997, function(n)
+	dummy<- sapply(7000:10000, function(i)
+	#dummy<- sapply(10000:19997, function(i)
 		{
 			cmd		<- paste(HOME,'/startme.R', sep='')
 			cmd		<- paste(cmd, ' -exe=MOM.SDE.SIMMO -i=',i,sep='')	

@@ -231,7 +231,7 @@ util.fade.col<-function(col,alpha=0.5)
 }
 ################################################################################################
 cg.sde<- function()
-{
+{	
 	require(data.table)
 	#	for a single model simulation, compute nsim=20 moment trajectories. 
 	#	the randomness comes from fluctuations in the state variables S I0 I1 I2 
@@ -247,7 +247,7 @@ cg.sde<- function()
 	#cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution()
 	
 	#	evaluate different pseudo likelihoods to the eMis
-	cg.sde.eval.pseudolkl.to.eM.distribution()
+	cg.sde.eM.pseudolkl()
 }
 ################################################################################################
 cg.sde.varyparam<- function()
@@ -395,8 +395,9 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 		tmp							<- lapply( seq_len(parms$mM.replicate), function(b)
 				{
 					#	get moments for new model solution to F G Y
-					solve.model.set.fgy(parms)				
-					
+					tmp					<- solve.model.set.fgy(parms)
+					F.					<<- tmp$F
+					Y.					<<- tmp$Y
 					tmp					<- calculate.cluster.size.moments.from.model(parms$sampleTime, pseudo.data$sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
 					#	store moments as data.table
 					tmp$Mi				<- cbind( as.data.table(t( tmp$Mi )), height=tmp$heights, replicate=b )				
@@ -434,7 +435,7 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 		df.mMi	<- eval( parse(text=cmd) )
 		
 		#
-		#	get delta eMi and mMi
+		#	get delta mMi
 		#
 				
 		df.mMi[, dummy:= -height]		
@@ -443,6 +444,15 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 		cmd		<- paste('df.mMi[, list(',cmd,', height=height[-1]), by="replicate"]',sep='')
 		df.mMid	<- eval( parse(text=cmd) )
 		setkey(df.mMid, replicate, height)
+		
+		#	clean up df.mMid: remove numerical inaccuracies 
+		cmd		<- paste('state.',1:m,'<',0,sep='', collapse=' | ')	
+		cmd		<- paste('df.mMid[, which(',cmd,')]',sep='')
+		tmp		<- eval( parse(text=cmd) )
+		set(df.mMid, tmp, 'height', NA)	
+		cmd		<- paste('{ ok.last<- which(is.na(height));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));  list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+		cmd		<- paste('df.mMid[,',cmd,', by="replicate"]')
+		df.mMid	<- eval( parse(text=cmd) )
 		
 		
 		sim			<- list()
@@ -976,20 +986,8 @@ cg.sde.eM.pseudolkl.for.param<- function(pseudo.datasets, resume=1, file.r=NA, f
 		}
 		# compare different 1D pseudo lkls for each tree height
 		df.fit1d	<- cg.sde.eM.pseudolkl.fit1DmMid(df.eMid, df.mMid, file=paste(file.pdf, '_eMid_1D_fit.pdf',sep=''))
-		
-				
-		cg.sde.eM.pseudolkl.plot.eMid.mMid.distr(df.eMid, df.mMid, paste(file.pdf, '_eMid_2D.pdf',sep=''), lab='delta eM')
-			
-
-		
-		
 					
-		
-		
-		
-		
-		
-		
+		cg.sde.eM.pseudolkl.plot.eMid.mMid.distr(df.eMid, df.mMid, paste(file.pdf, '_eMid_2D.pdf',sep=''), lab='delta eM')	
 		
 		cat(paste("\nsave df.fit to ",paste(file.r,'_fit1D.R',sep='')))
 		save(df.eMi, df.mMi, df.eMid, df.mMid, df.eMij, df.mMij, df.fit1d, file=paste(file.r,'_fit1D.R',sep=''))		
@@ -1097,7 +1095,78 @@ cg.sde.tiptypenumber.pseudolkl.plot.pvalue2<- function(df.test, file)
 	dev.off()
 }
 ################################################################################################
-cg.sde.eval.pseudolkl.to.eM.distribution<- function()
+cg.sde.eM.pseudolkl.fit3D<- function()
+{
+	require(data.table)
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
+	S0				<- 5e3
+	S0				<- 2e5
+	phi				<- 0.5
+	phi				<- 0.25
+	#	parameter template
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+			S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
+			times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+	run.old.version	<- 0
+	resume			<- 1
+	heights			<- seq(10, 50, length.out=50)
+	parms.vary.i	<- 8
+	#	bits of the model that are varied
+	gi				<- c(0.5, 1, 3) 			#avg duration of I0
+	bf				<- c(2,4,8,16) 				#dampening of beta0
+	parms.vary		<- expand.grid(gi=gi, bf= bf)	
+	parms.vary		<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
+	#	get files to precomputed mM.sets	
+	files.mMset		<- list.files(dir.name)
+	files.mMset		<- files.mMset[ sapply( files.mMset, function(x)	grepl('pseudo.mM',x, fixed=1) & grepl(paste('S=',parms.template$S_0,sep=''),x, fixed=1) & grepl('set=',x, fixed=1) & grepl('.R',x, fixed=1)	) ]
+	
+	#	choose 'observed' data
+	if(!is.na(parms.vary.i))
+		parms.vary	<- parms.vary[parms.vary.i,,drop=0]
+	
+	df.fit		<- lapply(seq_len(nrow(parms.vary)),function(i)
+			{				
+				cat(paste('\nprocess',i,'gi=',parms.vary[i,gi],'bf=',parms.vary[i,bf]))
+				# 	load pseudo data set
+				file								<- paste(dir.name,'/',"pseudodata.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')				
+				if( is.na(file.info(file)$size) )	stop('cannot load data set')
+				cat(paste("\nload file=",file))
+				tmp									<- load(file)
+				#	collect empirical first moments over bdt replicates and for all heights				
+				m			<- nrow( pseudo.datasets[[1]]$eMi )
+				heights		<- unique( pseudo.datasets[[1]]$mMi[,height] )								
+				df.eMi		<- lapply(seq_along(pseudo.datasets), function(k)
+								{					
+									tmp				<- pseudo.datasets[[k]]$eMi
+									rownames(tmp)	<- paste('state',1:m,sep='.')					
+									cbind( as.data.table(t( tmp )), height=heights, bdt=k )				
+								})
+				df.eMi		<- do.call('rbind', df.eMi)
+				#	get delta eMi and mMi				
+				df.eMi[, dummy:= -height]
+				setkey(df.eMi, bdt, dummy)
+				cmd		<- paste('state.',1:m,'= -diff(state.',1:m,')',sep='', collapse=',')
+				cmd		<- paste('df.eMi[, list(',cmd,', height=height[-1]), by="bdt"]',sep='')
+				df.eMid	<- eval( parse(text=cmd) )
+				setkey(df.eMid, bdt, height)
+				
+				
+				
+				
+				
+				rownames(tmp)	<- sapply(1:m, function(i) paste('state.',i,1:m,sep=''))[upper.tri(diag(m),diag=1)]
+				
+				subset( tmp, height== unique(tmp[,height])[26])	
+				
+				cov( tmp_h )
+				
+			})
+	
+}
+################################################################################################
+cg.sde.eM.pseudolkl<- function()
 {
 	my.mkdir(HOME, 'MOMSDE' )
 	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
@@ -1111,7 +1180,7 @@ cg.sde.eval.pseudolkl.to.eM.distribution<- function()
 			times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
 	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
 	run.old.version	<- 0
-	resume			<- 1
+	resume			<- 0
 	heights			<- seq(10, 50, length.out=50)
 	
 	if(resume)
@@ -1132,7 +1201,7 @@ cg.sde.eval.pseudolkl.to.eM.distribution<- function()
 		
 		df.fit		<- lapply(seq_len(nrow(parms.vary)),function(i)
 				{
-					i<- 8
+				
 					cat(paste('\nprocess',i))
 					# load pseudo data set
 					parms								<- parms.template
@@ -1251,6 +1320,117 @@ cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution<- function()
 	
 	#	for every single bdt, the cluster size distribution breaks down deep in the tree, need h<40
 	#	for every single bdt, the variance is hard to estimate close to the tips, need h>35 or more tips
+}
+################################################################################################
+cg.sde.get.mM.collect.runs<- function()
+{
+	require(data.table)
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+								S_0=2e5, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
+								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25, mM.replicate= 100)	
+		
+	dir.name		<- paste(HOME, '/MOMSDE', '/pseudo.mM.S=', parms.template$S_0,sep='')	
+	files			<- list.files(dir.name)	
+	files			<- files[ sapply( files, function(x)	grepl('gi=',x, fixed=1)	) ]	
+	mM.nsets		<- ceiling( length(files)/1e3 )
+	mM.files		<- data.table(file=files, mM.set=ceiling(seq_along(files)/1e3))
+	m				<- parms.template$m
+	
+	#	collect simulated mM for various parms 
+	dummy	<- sapply(unique(mM.files[,mM.set]), function(mM.set.i)
+			{
+				cat(paste('\nprocess set',mM.set.i))
+				mM.files.set	<- subset(mM.files, mM.set==mM.set.i)
+				mM.set			<- lapply( seq_len(nrow(mM.files.set)), function(i)
+						{							
+							load( paste(dir.name, mM.files.set[i,file], sep='/') )
+							mMid	<- sim$mMid
+							#	fix cleaning of mMid
+							#	clean up df.mMi: remove numerical inaccuracies in mMi
+							cmd		<- paste('state.',1:m,'<',0,sep='', collapse=' | ')	
+							cmd		<- paste('mMid[, which(',cmd,')]',sep='')
+							tmp		<- eval( parse(text=cmd) )
+							set(mMid, tmp, 'height', NA)	
+							if(mMid[, any( is.na(height))])
+							{
+								cmd		<- paste('{ ok.last<- which(is.na(height));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));  list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+								cmd		<- paste('mMid[,',cmd,', by="replicate"]')
+								mMid	<- eval( parse(text=cmd) )
+							}
+							#
+							mMid[, gi:= 1/sim$parms$gamma0]
+							mMid[, bf:= sim$parms$beta0 / sim$parms$beta1]
+							mMid				
+						})
+				mM.set			<- do.call('rbind', mM.set)
+				file			<- paste(HOME, '/MOMSDE', '/pseudo.mM.S=', parms.template$S_0,'.set=',mM.set.i,'.R',sep='')
+				save(mM.set, file=file)				
+			})
+	
+	#	clean up: keep only parms for which we have >50 replicates for heights in 10-40
+	dir.name		<- paste(HOME, 'MOMSDE', sep='/')
+	files			<- list.files(dir.name)
+	files			<- files[ sapply( files, function(x)	grepl('pseudo.mM',x, fixed=1) & grepl(paste('S=',parms.template$S_0,sep=''),x, fixed=1) & grepl('set=',x, fixed=1) & grepl('.R',x, fixed=1)	) ]	
+	dummy			<- lapply( seq_along(files), function(mM.set.i)
+			{
+				file			<- paste(dir.name,files[mM.set.i],sep='/')
+				load(file)
+				
+				parms.vary		<- unique( subset( mM.set, select=c(gi, bf) ) )
+				
+				mM.set.select	<- mM.set[, list( height.ok.n=length(which( height<40 & height>10 ) )), by=c('gi', 'bf', 'replicate')]
+				mM.set.select	<- mM.set.select[, list( replicate.n.with.height.ok=length(which(height.ok.n>=25)) ), by=c('gi', 'bf')]
+				mM.set.select	<- subset( mM.set.select, replicate.n.with.height.ok>50 )
+				#
+				cat(paste('\nplot mM.set.select to file=',paste(substr(file, 1, nchar(file)-2),'_mMselect.pdf', sep='')))
+				pdf( paste(substr(file, 1, nchar(file)-2),'_mMselect.pdf', sep=''), 4, 4)
+				plot( mM.set.select[,gi], mM.set.select[, bf], bty='n', pch=18, xlab='gi', ylab='bf')
+				dev.off()
+				#
+				mM.set			<- merge( subset( mM.set.select, select=c(gi, bf) ), mM.set, by=c('gi', 'bf'))
+				cat(paste('\nsave cleaned mM.set to file', file))
+				save(mM.set, file=file)
+			})
+	
+	#	construct log normal pseudo likelihoods
+	dir.name		<- paste(HOME, 'MOMSDE', sep='/')
+	files			<- list.files(dir.name)
+	files			<- files[ sapply( files, function(x)	grepl('pseudo.mM',x, fixed=1) & grepl(paste('S=',parms.template$S_0,sep=''),x, fixed=1) & grepl('set=',x, fixed=1) & grepl('.R',x, fixed=1)	) ]	
+	dummy			<- lapply( seq_along(files), function(mMset.i)
+			{
+				#mMset.i	<- 1
+				file	<- paste(dir.name, files[mMset.i], sep='/')
+				cat(paste('\nprocess',file))
+				load( file  )
+				#	log mMid	
+				mM.states.col	<- which( grepl('state',colnames( mM.set )) )
+				for(j in mM.states.col)
+					set(mM.set, NULL, colnames(mM.set)[j], log( unclass( mM.set[, j, with=0] )[[1]]) )				
+				#	for each parms and each height, construct lognormal pseudolikelihood parameters
+				setkey( mM.set, gi, bf, height)
+				parms	<- unique( subset( mM.set, select=c(gi, bf)))
+				mM.ln	<- lapply(seq_len(nrow(parms)), function(parms.j)
+						{
+							tmp_p	<- subset(mM.set, gi==parms[parms.j,gi] & bf==parms[parms.j,bf])				
+							cmd		<- paste('{ 	tmp_h		<- as.matrix(cbind(',paste('state.',1:m, collapse=', ', sep=''),')); 
+											ans			<- as.vector(cov( tmp_h )[ upper.tri(diag(nrow=m, ncol=m), diag=TRUE) ]); 
+											names(ans)	<- sapply(1:m, function(i) paste("cov.",i,1:m,sep=""))[upper.tri(diag(m),diag=1)];
+											as.list( c( colMeans( tmp_h ), ans) ) }',sep='')
+							cmd		<- paste('tmp_p[,',cmd,', by="height"]', sep='')
+							mM.ln_p	<- eval( parse(text=cmd) )
+							mM.ln_p[, gi:= parms[parms.j,gi] ]
+							mM.ln_p[, bf:= parms[parms.j,bf] ]
+							mM.ln_p
+						})
+				mM.ln	<- do.call('rbind', mM.ln)	
+				file	<- paste(dir.name,'/',sub('mM','LNmM',files[mMset.i]),sep='')
+				cat(paste('\nsave mM.ln to file=',file))
+				save(mM.ln, file=file)
+			})
+	
+	#check stuff
+	tmp		<- subset(mM.set, gi==0.5005 & bf==2.42)
+	tmp_h	<- subset( tmp, height==unique( tmp[,height] )[1] )
 }
 ################################################################################################
 cg.sde.get.mM<- function()

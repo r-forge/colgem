@@ -32,7 +32,7 @@ HOME		<<- "/Users/Oliver/workspace_sandbox/colgem/prjcts"
 
 default.fun	<- "colgem.project.moments.for.odesystem"
 default.fun	<- "cg.sde"
-default.fun	<- "cg.pipeline"
+#default.fun	<- "cg.pipeline"
 ###############################################################################
 args <- commandArgs()
 if(!any(args=='--args'))
