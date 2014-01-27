@@ -386,18 +386,15 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 		options(show.error.messages = TRUE)								
 	}
 	if(is.na(file) | inherits(readAttempt, "try-error"))
-	{
-		pseudo.data					<- solve.model.set.fgy(parms_truth)	
-		pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
-		pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
-		pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]
-		
-		tmp							<- lapply( seq_len(parms$mM.replicate), function(b)
+	{		
+		tmp			<- lapply( seq_len(parms$mM.replicate), function(b)
 				{
 					#	get moments for new model solution to F G Y
-					tmp					<- solve.model.set.fgy(parms)
-					F.					<<- tmp$F
-					Y.					<<- tmp$Y
+					pseudo.data					<- solve.model.set.fgy(parms_truth)	
+					pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
+					pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
+					pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]					
+					#
 					tmp					<- calculate.cluster.size.moments.from.model(parms$sampleTime, pseudo.data$sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
 					#	store moments as data.table
 					tmp$Mi				<- cbind( as.data.table(t( tmp$Mi )), height=tmp$heights, replicate=b )				
