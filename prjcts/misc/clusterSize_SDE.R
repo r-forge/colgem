@@ -244,10 +244,10 @@ cg.sde<- function()
 	#cg.sde.get.pseudodata()
 	
 	#	evaluate different pseudo likelihoods to the empirical cluster size distributions
-	#cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution()
+	#cg.sde.csize.pseudodata()
 	
 	#	evaluate different pseudo likelihoods to the eMis
-	cg.sde.eM.pseudolkl()
+	#cg.sde.eM.pseudodata()
 }
 ################################################################################################
 cg.sde.varyparam<- function()
@@ -469,7 +469,7 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 ################################################################################################
 # plot distribution of cluster sizes for each tree height, 
 # this pools over many repeat runs to get a nice distribution
-cg.sde.tiptypenumber.pseudolkl.plotdistr<- function(pseudo.datasets, distr, heights, file)
+cg.sde.csize.pseudodata.plotdistr<- function(pseudo.datasets, distr, heights, file)
 {
 	m		<- length( which( grepl('state',colnames(distr)) ) )
 	pdf(file=file, w=15, h=5)
@@ -495,7 +495,7 @@ cg.sde.tiptypenumber.pseudolkl.plotdistr<- function(pseudo.datasets, distr, heig
 ################################################################################################
 # plot distribution of cluster sizes for each tree height and add possible pseudo likelihoods
 # this pools over many repeat runs to get a nice distribution
-cg.sde.tiptypenumber.pseudolkl.plotpotentiallkl<- function(pseudo.datasets, distr, file=NA)
+cg.sde.csize.pseudodata.plotpotentiallkl<- function(pseudo.datasets, distr, file=NA)
 {
 	library(MASS)
 	library(RColorBrewer)
@@ -579,7 +579,7 @@ cg.sde.tiptypenumber.pseudolkl.plotpotentiallkl<- function(pseudo.datasets, dist
 	df.test			
 }
 ################################################################################################
-cg.sde.tiptypenumber.pseudolkl.plotpotentiallkl2<- function(pseudo.datasets, distr, file=NA)
+cg.sde.csize.pseudodata.plotpotentiallkl2<- function(pseudo.datasets, distr, file=NA)
 {
 	library(MASS)
 	library(RColorBrewer)
@@ -670,7 +670,7 @@ cg.sde.tiptypenumber.pseudolkl.plotpotentiallkl2<- function(pseudo.datasets, dis
 	df.test			
 }
 ################################################################################################
-cg.sde.tiptypenumber.pseudolkl.for.param<- function(pseudo.datasets, heights, resume=1, file.r=NA, file.pdf=NA)
+cg.sde.csize.pseudodata.for.param<- function(pseudo.datasets, heights, resume=1, file.r=NA, file.pdf=NA)
 {
 	require(data.table)
 	if(resume && !is.na(file.r))
@@ -698,16 +698,16 @@ cg.sde.tiptypenumber.pseudolkl.for.param<- function(pseudo.datasets, heights, re
 				})
 		distr	<- do.call("rbind",distr)	
 		# plot distribution of cluster sizes for each tree height
-		#cg.sde.tiptypenumber.pseudolkl.plotdistr(pseudo.datasets, distr, heights, file.pdf)	
+		#cg.sde.csize.pseudodata.plotdistr(pseudo.datasets, distr, heights, file.pdf)	
 		# explore potential pseudo likelihoods for each tree height
-		df.test	<- cg.sde.tiptypenumber.pseudolkl.plotpotentiallkl(pseudo.datasets, distr, file.pdf)
+		df.test	<- cg.sde.csize.pseudodata.plotpotentiallkl(pseudo.datasets, distr, file.pdf)
 		cat(paste("\nsave df.test to ",file.r))
 		save(df.test, file=file.r)
 	}
 	df.test
 }
 ################################################################################################
-cg.sde.eM.pseudolkl.fit1DmMid.plot.pvalue<- function(df.fit, file)
+cg.sde.eM.pseudodata.fit1DmMid.plot.pvalue<- function(df.fit, file)
 {
 	library(RColorBrewer)
 	pseudolkls	<- unique( df.fit[, distr] )
@@ -747,7 +747,7 @@ cg.sde.eM.pseudolkl.fit1DmMid.plot.pvalue<- function(df.fit, file)
 	dev.off()
 }
 ################################################################################################
-cg.sde.eM.pseudolkl.fit1DmMid<- function(df.obs, df.sim, file=NA)		
+cg.sde.eM.pseudodata.fit1DmMid<- function(df.obs, df.sim, file=NA)		
 {
 	require(nortest)
 	heights			<- unique( df.obs[, height] )	
@@ -803,7 +803,7 @@ cg.sde.eM.pseudolkl.fit1DmMid<- function(df.obs, df.sim, file=NA)
 	df.test
 }
 ################################################################################################
-cg.sde.eM.pseudolkl.plot.eMi.distr<- function(df.eMi, file=NA, lab='eM', method='2D')		
+cg.sde.eM.pseudodata.plot.eMi.distr<- function(df.eMi, file=NA, lab='eM', method='2D')		
 {
 	if(!method%in%c('2D','1D'))	stop('unexpected method')
 	heights		<- unique( df.eMi[, height] )	
@@ -845,7 +845,7 @@ cg.sde.eM.pseudolkl.plot.eMi.distr<- function(df.eMi, file=NA, lab='eM', method=
 	if(plot)	dev.off()
 }
 ################################################################################################
-cg.sde.eM.pseudolkl.plot.eMid.mMid.distr<- function(df.obs, df.sim, file,lab='delta eM')
+cg.sde.eM.pseudodata.plot.eMid.mMid.distr<- function(df.obs, df.sim, file,lab='delta eM')
 {
 	require(RColorBrewer)
 	heights			<- unique( df.obs[, height] )	
@@ -878,7 +878,7 @@ cg.sde.eM.pseudolkl.plot.eMid.mMid.distr<- function(df.obs, df.sim, file,lab='de
 	if(plot) dev.off()
 }
 ################################################################################################
-cg.sde.eM.pseudolkl.for.param<- function(pseudo.datasets, resume=1, file.r=NA, file.pdf=NA)
+cg.sde.eM.pseudodata.for.param<- function(pseudo.datasets, resume=1, file.r=NA, file.pdf=NA)
 {
 	if(resume && !is.na(file.r))
 	{
@@ -977,14 +977,14 @@ cg.sde.eM.pseudolkl.for.param<- function(pseudo.datasets, resume=1, file.r=NA, f
 		}
 		if(0)	#	a few diagnostic plots
 		{
-			cg.sde.eM.pseudolkl.plot.eMi.distr(df.eMi, lab='eM', method='2D', file=paste(file.pdf, '_eMi_2D.pdf',sep=''))
-			cg.sde.eM.pseudolkl.plot.eMi.distr(df.eMid, lab='delta eM', method='1D', file=paste(file.pdf, '_eMid_1D.pdf',sep='') )
-			cg.sde.eM.pseudolkl.plot.eMi.distr(df.eMid, lab='delta eM', method='2D', file=paste(file.pdf, '_eMid_2D.pdf',sep='') )
+			cg.sde.eM.pseudodata.plot.eMi.distr(df.eMi, lab='eM', method='2D', file=paste(file.pdf, '_eMi_2D.pdf',sep=''))
+			cg.sde.eM.pseudodata.plot.eMi.distr(df.eMid, lab='delta eM', method='1D', file=paste(file.pdf, '_eMid_1D.pdf',sep='') )
+			cg.sde.eM.pseudodata.plot.eMi.distr(df.eMid, lab='delta eM', method='2D', file=paste(file.pdf, '_eMid_2D.pdf',sep='') )
 		}
 		# compare different 1D pseudo lkls for each tree height
-		df.fit1d	<- cg.sde.eM.pseudolkl.fit1DmMid(df.eMid, df.mMid, file=paste(file.pdf, '_eMid_1D_fit.pdf',sep=''))
+		df.fit1d	<- cg.sde.eM.pseudodata.fit1DmMid(df.eMid, df.mMid, file=paste(file.pdf, '_eMid_1D_fit.pdf',sep=''))
 					
-		cg.sde.eM.pseudolkl.plot.eMid.mMid.distr(df.eMid, df.mMid, paste(file.pdf, '_eMid_2D.pdf',sep=''), lab='delta eM')	
+		cg.sde.eM.pseudodata.plot.eMid.mMid.distr(df.eMid, df.mMid, paste(file.pdf, '_eMid_2D.pdf',sep=''), lab='delta eM')	
 		
 		cat(paste("\nsave df.fit to ",paste(file.r,'_fit1D.R',sep='')))
 		save(df.eMi, df.mMi, df.eMid, df.mMid, df.eMij, df.mMij, df.fit1d, file=paste(file.r,'_fit1D.R',sep=''))		
@@ -992,7 +992,7 @@ cg.sde.eM.pseudolkl.for.param<- function(pseudo.datasets, resume=1, file.r=NA, f
 	df.fit1d
 }
 ################################################################################################
-cg.sde.tiptypenumber.pseudolkl.for.param2<- function(pseudo.datasets, heights, resume=1, file.r=NA, file.pdf=NA)
+cg.sde.csize.pseudodata.for.param2<- function(pseudo.datasets, heights, resume=1, file.r=NA, file.pdf=NA)
 {
 	if(resume && !is.na(file.r))
 	{
@@ -1019,16 +1019,16 @@ cg.sde.tiptypenumber.pseudolkl.for.param2<- function(pseudo.datasets, heights, r
 				})
 		distr	<- do.call("rbind",distr)	
 		# plot distribution of cluster sizes for each tree height
-		#cg.sde.tiptypenumber.pseudolkl.plotdistr(pseudo.datasets, distr, heights, file.pdf)	
+		#cg.sde.csize.pseudodata.plotdistr(pseudo.datasets, distr, heights, file.pdf)	
 		# explore potential pseudo likelihoods for each tree height
-		df.test	<- cg.sde.tiptypenumber.pseudolkl.plotpotentiallkl2(pseudo.datasets, distr, file=file.pdf)
+		df.test	<- cg.sde.csize.pseudodata.plotpotentiallkl2(pseudo.datasets, distr, file=file.pdf)
 		cat(paste("\nsave df.test to ",file.r))
 		save(df.test, file=file.r)
 	}
 	df.test
 }	
 ################################################################################################
-cg.sde.tiptypenumber.pseudolkl.plot.pvalue<- function(df.test, file)
+cg.sde.csize.pseudodata.plot.pvalue<- function(df.test, file)
 {
 	library(RColorBrewer)
 	pseudolkls	<- c('poi','geom','negbin')
@@ -1055,7 +1055,7 @@ cg.sde.tiptypenumber.pseudolkl.plot.pvalue<- function(df.test, file)
 	dev.off()
 }
 ################################################################################################
-cg.sde.tiptypenumber.pseudolkl.plot.pvalue2<- function(df.test, file)
+cg.sde.csize.pseudodata.plot.pvalue2<- function(df.test, file)
 {
 	library(RColorBrewer)
 	pseudolkls	<- c('poi','geom','negbin')
@@ -1092,9 +1092,165 @@ cg.sde.tiptypenumber.pseudolkl.plot.pvalue2<- function(df.test, file)
 	dev.off()
 }
 ################################################################################################
+util.image.smooth<- function(x, y, z, xlab='', ylab='', nrow=50, palette="gray", ncol=50, nlevel=50, theta=.25, tol=1e-8, plot=1, cex.points=0, points.pch=20, points.col="white", contour.nlevels=0, contour.col="white", main='')
+{
+	require(fields)		
+	x		<- matrix(c(x,y),ncol=2,nrow=length(x) )
+	out		<- as.image(z,x=x,nrow=nrow, ncol=ncol)
+	dx		<- out$x[2]-out$x[1] 
+	dy		<- out$y[2]-out$y[1] 
+	look	<- image.smooth( out, theta=theta, tol=tol)
+	if(plot)
+	{
+		if(palette=="topo")				col<- tail( topo.colors(trunc(nlevel*1.4)), nlevel )
+		else if(palette=="gray")		col<- head( rev(gray(seq(0,.95,len=trunc(nlevel*1.4)))), nlevel)
+		else if(palette=="rob")			col<- colorRampPalette(c("blue", "orange", "red"), space = "Lab")( 50 )
+		else 							col<- tim.colors(nlevel)
+		image.plot(look,xlab=xlab,ylab=ylab, col=col, main=main)
+		if(cex.points>0)
+			points( x , cex=cex.points, col=points.col, pch=points.pch)		
+		if(contour.nlevels>0)
+			contour(look$x, look$y, look$z, add=TRUE, nlevels=contour.nlevels, col=contour.col)
+	}
+	look
+}
+################################################################################################
+cg.sde.eM.pseudolkl.fit3D.foravgbdt<- function(df.eMid.avg, mM.ln, file=NA, true.gi=NA, true.bf=NA, opt.heights=c('height<=50', 'height<=10', 'height>=10 & height<=40'))
+{
+	if(!is.na(file))
+	{
+		if( substr(file, nchar(file)-1, nchar(file))!='.R' ) stop('expect file to end in .R')		
+		cat(paste("\ntry load ",file))
+		options(show.error.messages = FALSE, warn=1)		
+		readAttempt	<- try(suppressWarnings(load(file)))						
+		options(show.error.messages = TRUE)								
+	}	
+	if(is.na(file) || inherits(readAttempt, "try-error"))
+	{
+		#	for simplicity consider mean across bdts -- this should definitely work	
+		require(mvtnorm)
+		eM.states.col	<- which( grepl('state',colnames( df.eMid.avg )) )
+		m				<- length( eM.states.col )		
+		mM.ln.mean.col	<- which( grepl('state',colnames( mM.ln )) )
+		mM.ln.cov.col	<- which( grepl('cov',colnames( mM.ln )) )
+		setnames(df.eMid.avg, 'height', 'height.e')
+		mM.lkl			<- mM.ln[, {	
+					mean_p								<- c(state.1, state.2, state.3)
+					cov_p								<- matrix(0,m,m)
+					cov_p[upper.tri(cov_p, diag=TRUE)]	<- c(cov.11, cov.21, cov.22, cov.31, cov.32, cov.33)
+					cov_p[lower.tri(cov_p)]				<- t(cov_p)[lower.tri(cov_p)]							
+					list( lkl= dmvnorm( as.matrix(subset( df.eMid.avg, height.e==height )[,eM.states.col,with=0]), mean=mean_p, sigma=cov_p ) )
+				},by=c('gi','bf','height')]
+		set(mM.lkl, NULL, 'lkl', log(mM.lkl[,lkl]) )		
+		if(!is.na(file))
+			save(mM.lkl, file=file)			
+	}
+	if(!is.na(file))
+	{
+		file	<- paste( substr(file, 1, nchar(file)-2),'.pdf', sep='')
+		cat(paste('\nplot to file',file))
+		pdf(file, h=5, w=length(opt.heights)*5)
+		par(mfcol=c(1,length(opt.heights)))
+		dummy		<- lapply(opt.heights, function(opt.height)
+				{
+					mM.lkl.sum		<- eval(parse(text=paste( "subset(mM.lkl,",opt.height,")", sep='')))
+					mM.lkl.sum		<- mM.lkl.sum[, list(lkl=sum(lkl)), by=c('gi','bf')]				
+					tmp				<- subset( mM.lkl.sum, is.finite(lkl) )[, min(lkl)]				
+					set(mM.lkl.sum, which(is.infinite(mM.lkl.sum[,lkl])), 'lkl', tmp)
+					#	produce heat map
+					dummy			<- util.image.smooth(mM.lkl.sum[,gi], mM.lkl.sum[, bf], mM.lkl.sum[, lkl], xlab='gi', ylab='bf', nrow=50, palette="rob", ncol=50, nlevel=50, theta=.25, tol=1e-8, plot=1, cex.points=0.1, points.pch=20, points.col="black", contour.nlevels=7, contour.col="black", main=opt.height)
+					points(true.gi, true.bf, pch=18, cex=2)
+				})
+		dev.off()
+	}
+	mM.lkl
+}
+################################################################################################
+cg.sde.fulllkl<- function()
+{
+	require(data.table)	
+	#	input
+	parms.obs.i		<- 8
+	parms.sim.i		<- 1
+	if(exists("argv"))
+	{
+		tmp<- na.omit(sapply(argv,function(arg)
+						{	switch(substr(arg,2,2),
+									o= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
+		if(length(tmp)>0) parms.obs.i<- tmp[1]
+		tmp<- na.omit(sapply(argv,function(arg)
+						{	switch(substr(arg,2,2),
+									i= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
+		if(length(tmp)>0) parms.sim.i<- tmp[1]						
+	}	
+	#	fixed setup
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name			<- paste(HOME, 'MOMSDE',sep='/')
+	S0					<- 5e3
+	S0					<- 2e5
+	phi					<- 0.5
+	phi					<- 0.25
+	#	parameter template
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+								S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
+								times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')	
+	tmp					<-  cg.sde.define()
+	F.skeleton			<<- tmp$F.skeleton
+	G.					<<- tmp$G
+	step.x				<<- tmp$step.x
+	solve.model.set.fgy	<-  tmp$solve.model.set.fgy	
+	#
+	#	choose 'observed' pseudo data parameters and pre-simulated bdt
+	#
+	gi									<- c(0.5, 1, 3) 			#avg duration of I0
+	bf									<- c(2,4,8,16) 				#dampening of beta0
+	parms.obs							<- expand.grid(gi=gi, bf= bf)	
+	parms.obs							<- cbind(parms.obs, gamma0= 1/parms.obs[,'gi'], beta1= parms.template[['beta0']]/parms.obs[,'bf'])	
+	if(is.na(parms.obs.i))	stop('expect that a single pseudo data set is selected')	
+	parms.obs							<- parms.obs[parms.obs.i,]	
+	file								<- paste(dir.name,'/',"pseudodata.S=",parms.template$S_0,"_gi=",parms.obs[i,'gi'],"_bf=",parms.obs[i,'bf'],".R",sep='')				
+	if( is.na(file.info(file)$size) )	stop('cannot load data set')
+	cat(paste("\nload file=",file))
+	tmp									<- load(file)
+	pseudo.data.bdt						<- pseudo.datasets[[1]]$bdt
+	#
+	#	load set of parameters to evaluate the full likelihood for (first 3500 should be fine)
+	#
+	file.parms		<- paste(dir.name, '/pseudo.mM.S=',parms.template$S_0,'_parms.R', sep='')
+	load(file.parms)
+	parms.sim		<- parms.vary
+	parms.vary		<- NULL
+	if(!is.na(parms.obs.i))
+		parms.sim	<- parms.sim[parms.sim.i,,drop=0]
+	i				<- 1
+	cat(paste("\nprocess gi=",parms.sim[i,'gi'],", bf=",parms.sim[i,'bf'],', i=',i))
+	parms			<- parms.template
+	parms[c('gamma0','beta1','beta2')]	<- parms.sim[i,c('gamma0','beta1','beta1')]	
+	
+	#	define F. G. Y. for 'parms'
+	dummy		<- solve.model.set.fgy(parms)	
+	#	compute lkl and time it takes	
+	lkl_time	<- system.time( {lkl <- coalescent.log.likelihood(pseudo.data.bdt, integrationMethod = 'euler', finiteSizeCorrections=TRUE, maxHeight=0, discretizeRates=TRUE, fgyResolution = 100)} )
+	
+		
+	
+	
+}
+################################################################################################
 cg.sde.eM.pseudolkl.fit3D<- function()
 {
 	require(data.table)
+	
+	parms.vary.i		<- NA
+	if(exists("argv"))
+	{
+		tmp<- na.omit(sapply(argv,function(arg)
+						{	switch(substr(arg,2,2),
+									i= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
+		if(length(tmp)>0) parms.vary.i<- tmp[1]						
+	}
+	
 	my.mkdir(HOME, 'MOMSDE' )
 	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
 	S0				<- 5e3
@@ -1105,34 +1261,33 @@ cg.sde.eM.pseudolkl.fit3D<- function()
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 			S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
 			times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
-	run.old.version	<- 0
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')	
 	resume			<- 1
-	heights			<- seq(10, 50, length.out=50)
-	parms.vary.i	<- 8
+		
 	#	bits of the model that are varied
 	gi				<- c(0.5, 1, 3) 			#avg duration of I0
 	bf				<- c(2,4,8,16) 				#dampening of beta0
 	parms.vary		<- expand.grid(gi=gi, bf= bf)	
-	parms.vary		<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
-	#	get files to precomputed mM.sets	
-	files.mMset		<- list.files(dir.name)
-	files.mMset		<- files.mMset[ sapply( files.mMset, function(x)	grepl('pseudo.mM',x, fixed=1) & grepl(paste('S=',parms.template$S_0,sep=''),x, fixed=1) & grepl('set=',x, fixed=1) & grepl('.R',x, fixed=1)	) ]
-	
+	parms.vary		<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])	
 	#	choose 'observed' data
 	if(!is.na(parms.vary.i))
-		parms.vary	<- parms.vary[parms.vary.i,,drop=0]
-	
-	df.fit		<- lapply(seq_len(nrow(parms.vary)),function(i)
+		parms.vary	<- parms.vary[parms.vary.i,]
+	#	precomputed pseudo likelihood densities	
+	file	<- paste(dir.name,'/',"pseudo.LNmM.S=",parms.template$S_0,'.R',sep='')
+	cat(paste('\nload mM.ln from file=',file))
+	load(file)
+	#	check that lognormal density can be computed
+	m				<- parms.template$m
+	#	
+	mM.lkl			<- lapply(seq_len(nrow(parms.vary)),function(i)
 			{				
-				cat(paste('\nprocess',i,'gi=',parms.vary[i,gi],'bf=',parms.vary[i,bf]))
+				cat(paste('\nprocess',i,'gi=',parms.vary[i,'gi'],'bf=',parms.vary[i,'bf']))
 				# 	load pseudo data set
 				file								<- paste(dir.name,'/',"pseudodata.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')				
 				if( is.na(file.info(file)$size) )	stop('cannot load data set')
 				cat(paste("\nload file=",file))
 				tmp									<- load(file)
-				#	collect empirical first moments over bdt replicates and for all heights				
-				m			<- nrow( pseudo.datasets[[1]]$eMi )
+				#	collect empirical first moments over bdt replicates and for all heights								
 				heights		<- unique( pseudo.datasets[[1]]$mMi[,height] )								
 				df.eMi		<- lapply(seq_along(pseudo.datasets), function(k)
 								{					
@@ -1141,29 +1296,36 @@ cg.sde.eM.pseudolkl.fit3D<- function()
 									cbind( as.data.table(t( tmp )), height=heights, bdt=k )				
 								})
 				df.eMi		<- do.call('rbind', df.eMi)
-				#	get delta eMi and mMi				
+				#	get delta eMi 				
 				df.eMi[, dummy:= -height]
 				setkey(df.eMi, bdt, dummy)
 				cmd		<- paste('state.',1:m,'= -diff(state.',1:m,')',sep='', collapse=',')
 				cmd		<- paste('df.eMi[, list(',cmd,', height=height[-1]), by="bdt"]',sep='')
 				df.eMid	<- eval( parse(text=cmd) )
 				setkey(df.eMid, bdt, height)
-				
-				
-				
-				
-				
-				rownames(tmp)	<- sapply(1:m, function(i) paste('state.',i,1:m,sep=''))[upper.tri(diag(m),diag=1)]
-				
-				subset( tmp, height== unique(tmp[,height])[26])	
-				
-				cov( tmp_h )
-				
+				#	remove zero delta eMi			
+				cmd		<- paste('state.',1:m,'==',0,sep='', collapse=' | ')	
+				cmd		<- paste('df.eMid[, which(',cmd,')]',sep='')
+				tmp		<- eval( parse(text=cmd) )
+				set(df.eMid, tmp, 'height', NA)	
+				df.eMid	<- subset( df.eMid, !is.na(height) )								
+				#	log delta eMi				
+				eM.states.col	<- which( grepl('state',colnames( df.eMid )) )
+				for(j in eM.states.col)
+					set(df.eMid, NULL, colnames(df.eMid)[j], log( unclass( df.eMid[, j, with=0] )[[1]]) )
+				cmd			<- paste( 'df.eMid[, list(',paste('state.',1:m,'=mean(state.',1:m,')', sep='', collapse=', '),'),by="height"]', sep='' )
+				df.eMid.avg	<- eval(parse(text=cmd))
+								
+				file	<- paste(dir.name,'/',"pseudo.LNmM.S=",parms.template$S_0,"_truegi=",parms.vary[i,'gi'],"_truebf=",parms.vary[i,'bf'],".R",sep='')
+				mM.lkl	<- cg.sde.eM.pseudolkl.fit3D.foravgbdt(df.eMid.avg, mM.ln, file=file, true.gi=parms.vary[i,'gi'], true.bf=parms.vary[i,'bf'] )
+				mM.lkl[, true.gi:= parms.vary[i,'gi'] ]
+				mM.lkl[, true.bf:= parms.vary[i,'bf'] ]
+				mM.lkl
 			})
 	
 }
 ################################################################################################
-cg.sde.eM.pseudolkl<- function()
+cg.sde.eM.pseudodata<- function()
 {
 	my.mkdir(HOME, 'MOMSDE' )
 	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
@@ -1213,7 +1375,7 @@ cg.sde.eM.pseudolkl<- function()
 					
 					file.r			<- paste(dir.name,'/',"pseudo.eM.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],sep='')								
 					file.pdf		<- paste(dir.name,'/',"pseudo.eM.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],sep='')				
-					df.fit			<- cg.sde.eM.pseudolkl.for.param(pseudo.datasets, resume=0, file.r=file.r, file.pdf=file.pdf)
+					df.fit			<- cg.sde.eM.pseudodata.for.param(pseudo.datasets, resume=0, file.r=file.r, file.pdf=file.pdf)
 					df.fit[, gi:=parms.vary[i,'gi']]
 					df.fit[, bf:=parms.vary[i,'bf']]
 					df.fit
@@ -1226,11 +1388,11 @@ cg.sde.eM.pseudolkl<- function()
 		
 	
 	file.pdf	<- 	paste(dir.name,'/',"pseudo.eM.lkl.S=",parms.template$S_0,"_fit1Dpvalue.pdf",sep='')
-	cg.sde.eM.pseudolkl.fit1DmMid.plot.pvalue(df.fit, file.pdf)	
+	cg.sde.eM.pseudodata.fit1DmMid.plot.pvalue(df.fit, file.pdf)	
 
 }
 ################################################################################################
-cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution<- function()
+cg.sde.csize.pseudodata<- function()
 {
 	my.mkdir(HOME, 'MOMSDE' )
 	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
@@ -1281,14 +1443,14 @@ cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution<- function()
 						#old code fitting the pseudo lkl based on the pooled eMi.avg and eMii.avg
 						file.r		<- paste(dir.name,'/',"pseudodistr.potential.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],"_dftest.R",sep='')
 						file.pdf	<- paste(dir.name,'/',"pseudodistr.potential.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],"_distr.pdf",sep='')
-						df.test		<- cg.sde.tiptypenumber.pseudolkl.for.param(pseudo.datasets, heights, resume=1, file.r=file.r, file.pdf=file.pdf)
+						df.test		<- cg.sde.csize.pseudodata.for.param(pseudo.datasets, heights, resume=1, file.r=file.r, file.pdf=file.pdf)
 					}
 					else
 					{
 						#fit the pseudo lkl based on a single eMi and eMii
 						file.r		<- paste(dir.name,'/',"pseudodistr.potential.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],"_dftest2.R",sep='')
 						file.pdf	<- paste(dir.name,'/',"pseudodistr.potential.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],"_distr2.pdf",sep='')
-						df.test		<- cg.sde.tiptypenumber.pseudolkl.for.param2(pseudo.datasets, heights, resume=0, file.r=file.r, file.pdf=file.pdf)
+						df.test		<- cg.sde.csize.pseudodata.for.param2(pseudo.datasets, heights, resume=0, file.r=file.r, file.pdf=file.pdf)
 					}
 					df.test[, gi:=parms.vary[i,'gi']]
 					df.test[, bf:=parms.vary[i,'bf']]
@@ -1302,12 +1464,12 @@ cg.sde.eval.pseudolkl.to.empirical.clustersize.distribution<- function()
 	if(run.old.version)
 	{
 		file.pdf	<- paste(dir.name,'/',"pseudodistr.potential.lkl.S=",parms.template$S_0,"_pvalues.pdf",sep='')
-		cg.sde.tiptypenumber.pseudolkl.plot.pvalue(df.test, file=file.pdf)
+		cg.sde.csize.pseudodata.plot.pvalue(df.test, file=file.pdf)
 	}
 	else
 	{
 		file.pdf	<- paste(dir.name,'/',"pseudodistr.potential.lkl.S=",parms.template$S_0,"_pvalues2.pdf",sep='')
-		cg.sde.tiptypenumber.pseudolkl.plot.pvalue2(df.test, file=file.pdf)
+		cg.sde.csize.pseudodata.plot.pvalue2(df.test, file=file.pdf)
 		
 	}
 	
@@ -1342,17 +1504,20 @@ cg.sde.get.mM.collect.runs<- function()
 						{							
 							load( paste(dir.name, mM.files.set[i,file], sep='/') )
 							mMid	<- sim$mMid
-							#	fix cleaning of mMid
-							#	clean up df.mMi: remove numerical inaccuracies in mMi
-							cmd		<- paste('state.',1:m,'<',0,sep='', collapse=' | ')	
-							cmd		<- paste('mMid[, which(',cmd,')]',sep='')
-							tmp		<- eval( parse(text=cmd) )
-							set(mMid, tmp, 'height', NA)	
-							if(mMid[, any( is.na(height))])
+							if(0)
 							{
-								cmd		<- paste('{ ok.last<- which(is.na(height));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));  list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
-								cmd		<- paste('mMid[,',cmd,', by="replicate"]')
-								mMid	<- eval( parse(text=cmd) )
+								#	fix cleaning of mMid
+								#	clean up df.mMi: remove numerical inaccuracies in mMi
+								cmd		<- paste('state.',1:m,'<',0,sep='', collapse=' | ')	
+								cmd		<- paste('mMid[, which(',cmd,')]',sep='')
+								tmp		<- eval( parse(text=cmd) )
+								set(mMid, tmp, 'height', NA)	
+								if(mMid[, any( is.na(height))])
+								{
+									cmd		<- paste('{ ok.last<- which(is.na(height));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));  list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+									cmd		<- paste('mMid[,',cmd,', by="replicate"]')
+									mMid	<- eval( parse(text=cmd) )
+								}
 							}
 							#
 							mMid[, gi:= 1/sim$parms$gamma0]
@@ -1393,7 +1558,7 @@ cg.sde.get.mM.collect.runs<- function()
 	dir.name		<- paste(HOME, 'MOMSDE', sep='/')
 	files			<- list.files(dir.name)
 	files			<- files[ sapply( files, function(x)	grepl('pseudo.mM',x, fixed=1) & grepl(paste('S=',parms.template$S_0,sep=''),x, fixed=1) & grepl('set=',x, fixed=1) & grepl('.R',x, fixed=1)	) ]	
-	dummy			<- lapply( seq_along(files), function(mMset.i)
+	mM.ln			<- lapply( seq_along(files), function(mMset.i)
 			{
 				#mMset.i	<- 1
 				file	<- paste(dir.name, files[mMset.i], sep='/')
@@ -1419,15 +1584,23 @@ cg.sde.get.mM.collect.runs<- function()
 							mM.ln_p[, bf:= parms[parms.j,bf] ]
 							mM.ln_p
 						})
-				mM.ln	<- do.call('rbind', mM.ln)	
-				file	<- paste(dir.name,'/',sub('mM','LNmM',files[mMset.i]),sep='')
-				cat(paste('\nsave mM.ln to file=',file))
-				save(mM.ln, file=file)
+				mM.ln	<- do.call('rbind', mM.ln)
+				mM.ln
 			})
+	mM.ln		<- do.call('rbind', mM.ln)
 	
-	#check stuff
-	tmp		<- subset(mM.set, gi==0.5005 & bf==2.42)
-	tmp_h	<- subset( tmp, height==unique( tmp[,height] )[1] )
+	mM.ln.ok	<- mM.ln[, {				
+								cov_p								<- matrix(0,m,m)
+								cov_p[upper.tri(cov_p, diag=TRUE)]	<- c(cov.11, cov.21, cov.22, cov.31, cov.32, cov.33)
+								cov_p[lower.tri(cov_p)]				<- t(cov_p)[lower.tri(cov_p)]
+								list( ok.svd= class(try(solve(cov_p), silent=TRUE))=='matrix' )							
+							},by=c('gi','bf','height')]
+	mM.ln		<- merge( mM.ln.ok, mM.ln, by=c('gi','bf','height') )	
+	mM.ln 		<- subset( mM.ln, ok.svd==TRUE )[, which(!grepl("ok.svd", colnames(mM.ln))), with=FALSE]	
+	file		<- paste(dir.name,'/',"pseudo.LNmM.S=",parms.template$S_0,'.R',sep='')
+	cat(paste('\nsave mM.ln to file=',file))
+	save(mM.ln, file=file)	
+	
 }
 ################################################################################################
 cg.sde.get.mM<- function()

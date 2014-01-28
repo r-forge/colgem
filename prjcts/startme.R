@@ -32,7 +32,7 @@ HOME		<<- "/Users/Oliver/workspace_sandbox/colgem/prjcts"
 
 default.fun	<- "colgem.project.moments.for.odesystem"
 default.fun	<- "cg.sde"
-default.fun	<- "cg.pipeline"
+#default.fun	<- "cg.pipeline"
 ###############################################################################
 args <- commandArgs()
 if(!any(args=='--args'))
@@ -221,7 +221,8 @@ if(length(args))
 					MOM.ODE					 = "colgem.project.moments.for.odesystem",
 					MOM.SDE					 = "cg.sde",
 					MOM.SDE.PSEUDODATA		 = "cg.sde.get.pseudodata",
-					MOM.SDE.SIMMO			 = "cg.sde.get.mM"
+					MOM.SDE.SIMMO			 = "cg.sde.get.mM",
+					MOM.SDE.LN3D			 = "cg.sde.eM.pseudolkl.fit3D"
 					)
 	}
 	tmp<- na.omit(sapply(args,function(arg)
