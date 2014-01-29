@@ -135,10 +135,14 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 	if (USE_DISCRETE_FGY & !is.null(globalParms)){
 		if (FGY_INDEX < FGY_RESOLUTION &  h > FGY_H_BOUNDARIES[FGY_INDEX])  {globalParms$FGY_INDEX <- FGY_INDEX+1 ; return(.dPiAL(h, y, parms,globalParms=globalParms))}
 		if ( FGY_INDEX > 1 ) { if ( h< FGY_H_BOUNDARIES[FGY_INDEX-1]) { globalParms$FGY_INDEX <- FGY_INDEX-1 ; return(.dPiAL(h, y, parms,globalParms=globalParms))} }
+		.G <- G.(FGY_INDEX) 
+		.F <- F.(FGY_INDEX)
+		.Y <- Y.(FGY_INDEX) 
+	} else{
+		.G <- G.(t) 
+		.F <- F.(t)
+		.Y <- Y.(t) 
 	}
-	.G <- G.(t) 
-	.F <- F.(t)
-	.Y <- Y.(t) 
 	X1 <- pmax(A / .Y, 0); X1[is.infinite(X1)] <- A[is.infinite(X1)]
 	X2 <-  pmax( (.Y - A ) / .Y, 0); X2[is.infinite(X2)] <- A[is.infinite(X2)]
 	
@@ -231,8 +235,13 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 		#if applicable: update ustate & calculate lstate of new line 
 		newNodes <- which( tree$heights == h1)
 		newNodes <- newNodes[newNodes > length(tree$sampleTimes)]
-		.F <- F.(tree$maxSampleTime - h1)
-		.Y <- Y.(tree$maxSampleTime - h1)
+		if (USE_DISCRETE_FGY){
+			.F <- F.(FGY_INDEX)
+			.Y <- Y.(FGY_INDEX)
+		} else{
+			.F <- F.(tree$maxSampleTime - h1)
+			.Y <- Y.(tree$maxSampleTime - h1)
+		}
 		S <- exp(-L)
 		
 		#TODO option to return -Inf in this situation: 
