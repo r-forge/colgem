@@ -42,6 +42,18 @@ cg.cmd.hpccaller<- function(outdir, outfile, cmd)
 	
 }
 
+cg.pipeline.coalescent.log.likelihood<- function()
+{
+	dummy<- sapply(1:10, function(i)	
+			{
+				cmd		<- paste(HOME,'/startme.R', sep='')
+				cmd		<- paste(cmd, ' -exe=LKL.SDE -o=8 -i=',i,sep='')	
+				cmd		<- cg.cmd.hpcwrapper(cmd, hpc.walltime=3, hpc.mem='470mb', hpc.nproc=1, hpc.q=NA)	
+				file	<- paste('cglk',paste(strsplit(date(),split=' ')[[1]],collapse='_',sep=''),sep='.')	
+				cg.cmd.hpccaller( SCRIPT, file, cmd )	
+			})				
+}
+
 cg.pipeline.sim.mM<- function()
 {
 	dummy<- sapply(1:10000, function(i)	
@@ -72,5 +84,6 @@ cg.pipeline.pseudodata<- function()
 cg.pipeline<- function()
 {
 	#cg.pipeline.pseudodata()
-	cg.pipeline.sim.mM()
+	#cg.pipeline.sim.mM()
+	cg.pipeline.coalescent.log.likelihood()
 }

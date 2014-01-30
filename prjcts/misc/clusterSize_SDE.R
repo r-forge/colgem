@@ -1268,7 +1268,7 @@ cg.sde.fulllkl<- function()
 	require(data.table)	
 	#	input
 	parms.obs.i		<- 8
-	parms.sim.i		<- 1
+	parms.sim.i		<- 1	
 	if(exists("argv"))
 	{
 		tmp<- na.omit(sapply(argv,function(arg)
@@ -1282,21 +1282,30 @@ cg.sde.fulllkl<- function()
 	}	
 	#	fixed setup
 	my.mkdir(HOME, 'MOMSDE' )
-	dir.name			<- paste(HOME, 'MOMSDE',sep='/')
-	S0					<- 5e3
-	S0					<- 2e5
-	phi					<- 0.5
-	phi					<- 0.25
+	dir.name					<- paste(HOME, 'MOMSDE',sep='/')	
+	S0							<- 5e3
+	S0							<- 2e5
+	phi							<- 0.5
+	phi							<- 0.25
+	lkl.integrationMethod		<- 'euler'
+	lkl.finiteSizeCorrections	<- FALSE	#TRUE
+	lkl.discretizeRates			<- TRUE
+	lkl.fgyResolution			<- 100
+	lkl.maxHeight				<- 0	
 	#	parameter template
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
 								times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')	
+	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+	#
 	tmp					<-  cg.sde.define()
 	F.skeleton			<<- tmp$F.skeleton
 	G.					<<- tmp$G
 	step.x				<<- tmp$step.x
-	solve.model.set.fgy	<-  tmp$solve.model.set.fgy	
+	solve.model.set.fgy	<-  tmp$solve.model.set.fgy
+	#
+	my.mkdir(dir.name, paste("lkl.S=",parms.template$S_0, sep='') )
+	dir.name.lkl		<- paste(dir.name, '/', "lkl.S=",parms.template$S_0, sep='')	
 	#
 	#	choose 'observed' pseudo data parameters and pre-simulated bdt
 	#
@@ -1319,17 +1328,38 @@ cg.sde.fulllkl<- function()
 	parms.sim		<- parms.vary
 	parms.vary		<- NULL
 	if(!is.na(parms.sim.i))
-		parms.sim	<- parms.sim[parms.sim.i,,drop=0]
-	i				<- 1
-	cat(paste("\nprocess gi=",parms.sim[i,'gi'],", bf=",parms.sim[i,'bf'],', i=',i))
-	parms			<- parms.template
-	parms[c('gamma0','beta1','beta2')]	<- parms.sim[i,c('gamma0','beta1','beta1')]	
-	
-	#	define F. G. Y. for 'parms'
-	dummy		<- solve.model.set.fgy(parms)	
-	#	compute lkl and time it takes	
-	lkl_time	<- system.time( {lkl <- coalescent.log.likelihood(pseudo.data.bdt, integrationMethod = 'euler', finiteSizeCorrections=TRUE, maxHeight=0, discretizeRates=TRUE, fgyResolution = 100)} )
-
+		parms.sim	<- parms.sim[parms.sim.i,,drop=0]	
+	#
+	#	compute likelihoods of pseudo.data.bdt for all parms in parms.sim
+	#
+	lkl	<- lapply( seq_len(nrow(parms.sim)), function(i)
+			{
+				cat(paste("\nprocess gi=",parms.sim[i,'gi'],", bf=",parms.sim[i,'bf'],', i=',i,'parms.sim.i=',parms.sim.i))
+				parms								<- parms.template
+				parms[c('gamma0','beta1','beta2')]	<- parms.sim[i,c('gamma0','beta1','beta1')]					
+				#	see if lkl already computed
+				file			<- paste(dir.name.lkl,'/',"lkl.S=",parms.template$S_0,"_gi=",parms.sim[i,'gi'],"_bf=",parms.sim[i,'bf'],".R",sep='')
+				cat(paste("\ntry load ",file))
+				options(show.error.messages = FALSE, warn=1)		
+				readAttempt		<- try(suppressWarnings(load(file)))						
+				options(show.error.messages = TRUE)								
+				#	compute if not yet there
+				if(inherits(readAttempt, "try-error"))
+				{
+					#	define F. G. Y. for 'parms'
+					dummy		<- solve.model.set.fgy(parms)	
+					#	compute lkl and time it takes	
+					tmp			<- system.time(
+							{
+								lkl <- coalescent.log.likelihood(pseudo.data.bdt, integrationMethod = lkl.integrationMethod, finiteSizeCorrections=lkl.finiteSizeCorrections, maxHeight=lkl.maxHeight, discretizeRates=lkl.discretizeRates, fgyResolution = lkl.fgyResolution)
+							})
+					lkl			<- data.table(lkl=lkl, sys.time=tmp, call='coalescent.log.likelihood', integrationMethod=lkl.integrationMethod, finiteSizeCorrections=lkl.finiteSizeCorrections, discretizeRates=lkl.discretizeRates, fgyResolution=lkl.fgyResolution, maxHeight=lkl.maxHeight)
+					cat(paste("\nsave lkl to file=",file))
+					save(lkl, file=file)
+				}
+				lkl					
+			})
+	lkl	<- do.call('rbind', lkl)
 	
 }
 ################################################################################################

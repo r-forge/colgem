@@ -356,7 +356,9 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 
 # CALCULATE LIKELIHOOD
 #' @export
-coalescent.log.likelihood <- function(bdt, FGY=NULL, integrationMethod = 'rk4', finiteSizeCorrections=TRUE, maxHeight=0, discretizeRates=FALSE, fgyResolution = 100){
+coalescent.log.likelihood <- function(bdt, FGY=NULL, integrationMethod = 'rk4', finiteSizeCorrections=TRUE, maxHeight=0, discretizeRates=FALSE, fgyResolution = 100)
+{
+	require(deSolve)
 	print(paste(date(), 'start likelihood'))
 	globalParms <- list( USE_DISCRETE_FGY = discretizeRates , FINITESIZECORRECTIONS = finiteSizeCorrections, INTEGRATIONMETHOD=integrationMethod )
 	if (!is.null(FGY)) { globalParms <- modifyList( globalParms, FGY) }
