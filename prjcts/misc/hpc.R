@@ -71,7 +71,7 @@ cg.pipeline.pseudodata<- function()
 {
 	dummy<- sapply(1:12, function(i)
 			{
-				sapply(1:100, function(n)
+				sapply(1:1, function(n)
 						{
 							cmd		<- paste(HOME,'/startme.R', sep='')
 							cmd		<- paste(cmd, ' -exe=MOM.SDE.PSEUDODATA -i=',i,' -n=',n, sep='')	
@@ -84,7 +84,7 @@ cg.pipeline.pseudodata<- function()
 
 cg.pipeline<- function()
 {
-	#cg.pipeline.pseudodata()
+	cg.pipeline.pseudodata()
 	#cg.pipeline.sim.mM()
-	cg.pipeline.coalescent.log.likelihood()
+	#cg.pipeline.coalescent.log.likelihood()
 }

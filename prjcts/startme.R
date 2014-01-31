@@ -219,9 +219,9 @@ if(length(args))
 		else default.fun<- switch(tmp[1],
 					MAKE.DOCUMENTATION		 = "my.make.documentation",
 					LKL.SDE					 = "cg.sde.fulllkl",
+					MOM.SDE.PSEUDODATA		 = "cg.sde.get.pseudodata",
 					MOM.ODE					 = "colgem.project.moments.for.odesystem",
-					MOM.SDE					 = "cg.sde",
-					MOM.SDE.PSEUDODATA		 = "cg.sde.eM.pseudodata",
+					MOM.SDE					 = "cg.sde",					
 					MOM.SDE.SIMMO			 = "cg.sde.get.mM",
 					MOM.SDE.LN3D			 = "cg.sde.eM.pseudolkl.fit3D"					
 					)

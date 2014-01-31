@@ -143,46 +143,46 @@ cg.sde.comparison.plots3<- function(heights, eM, mM, dir.name)
 #'	define F G solve.model.set.fgy that are assumed in rcolgem.R
 cg.sde.define<- function()
 {
+	
 	#~ the 'skeleton' functions are deterministic functions of system state
-	F.skeleton<- function(t, x = NA)
+	#	requires x.interp defined
+	F.skeleton<- function(t, parms, x = NA)
 	{
 		if (is.na(x[1]) )  x <- x.interp(t) 
 		N <- sum(x) 
-		I <- sum(x[INFECTEDNAMES])
-		lambda <- exp(-FGYPARMS$alpha * I/N) * c( FGYPARMS$beta0*x['I0'], FGYPARMS$beta1*x['I1'] , FGYPARMS$beta2*x['I2'])  * x['S']/N
+		I <- sum(x[c('I0', 'I1', 'I2')])
+		lambda <- exp(-parms$alpha * I/N) * c( parms$beta0*x['I0'], parms$beta1*x['I1'] , parms$beta2*x['I2'])  * x['S']/N
 		unname( cbind( lambda, matrix(0, nrow=3, ncol=2) ) )
 	}
-	G<- function(t, x = NA)
+	G<- function(t, x = NA, parms=FGYPARMS)
 	{
 		if (is.na(x[1]) )  x <- x.interp(t) 
 		g <- matrix(0, nrow=3, ncol=3)
-		g[1,2] <- FGYPARMS$gamma0 * x['I0']
-		g[2,3] <- FGYPARMS$gamma1 * x['I1']
+		g[1,2] <- parms$gamma0 * x['I0']
+		g[2,3] <- parms$gamma1 * x['I1']
 		g
 	}	
 	#~ solve using discrete euler method	
+	#	requires x.interp defined
 	step.x<- function(t, x, parms ) 
 	{
-		timestep	<- diff(parms$times)[1]
-		with(parms, {
-					lambda 				<- F.skeleton(t, x = x)
-					lambdaTimestep 		<- lambda * timestep
-					sumlambda 			<- sum(lambda) 
-					sumlambdaTimestep 	<- sum(lambdaTimestep) 
-					rsumlambda 			<- abs( sumlambda*timestep + sqrt(sumlambda) * rnorm(1, mean=0, sd=sqrt(timestep)) )
-					lambda 				<- lambdaTimestep * rsumlambda/sumlambdaTimestep
-					N 					<- sum(x)
-					list( x = x + c(
-									S = -rsumlambda + timestep*b * N - timestep * mu * x['S'], 
-									I0 = rsumlambda - timestep * (mu+gamma0)*x['I0'],
-									I1 = timestep*gamma0*x['I0'] - timestep*(mu+gamma1)*x['I1'],
-									I2 = timestep*gamma1*x['I1'] - timestep*(mu+gamma2)*x['I2']), 
+		timestep			<- diff(parms$times)[1]
+		lambda 				<- F.skeleton(t, parms, x = x)				#	requires x.interp defined
+		lambdaTimestep 		<- lambda * timestep
+		sumlambda 			<- sum(lambda) 
+		sumlambdaTimestep 	<- sum(lambdaTimestep) 
+		rsumlambda 			<- abs( sumlambda*timestep + sqrt(sumlambda) * rnorm(1, mean=0, sd=sqrt(timestep)) )
+		lambda 				<- lambdaTimestep * rsumlambda/sumlambdaTimestep
+		N 					<- sum(x)
+		list( x = x + c(
+							S = -rsumlambda + timestep*parms$b*N - timestep*parms$mu*x['S'], 
+							I0 = rsumlambda - timestep*(parms$mu+parms$gamma0)*x['I0'],
+							I1 = timestep*parms$gamma0*x['I0'] - timestep*(parms$mu+parms$gamma1)*x['I1'],
+							I2 = timestep*parms$gamma1*x['I1'] - timestep*(parms$mu+parms$gamma2)*x['I2']), 
 							lambda = lambda )
-				})
 	}
 	solve.model.set.fgy<- function(parameters, file=NA)
-	{ 
-		FGYPARMS	<<- parameters		
+	{ 				
 		lambdas 	<- list()
 		x 			<-  c(S = parameters$S_0, I0=parameters$I0_0, I1=parameters$I1_0, I2=parameters$I2_0)
 		times		<- parameters$times
@@ -192,14 +192,14 @@ cg.sde.define<- function()
 		for (itimes in 2:length(times))
 		{
 			t 					<- times[itimes]
-			x_lambda 			<- step.x( t, x, parameters)
+			x_lambda 			<- step.x( t, x, parameters)															#depends on x.interp
 			x 					<- x_lambda[['x']]
 			lambdas[[itimes]] 	<- x_lambda[['lambda']]
 			o					<- rbind(o, c(t, x))
 		}
-		x.interps	<-  sapply( names(x), function(n) approxfun(o[,1], o[,n], yleft=o[1,n], yright=o[nrow(o),n]) )
-		x.interp 	<<- function(t) { sapply(x.interps, function(interp) interp(t) ) }  
-		Y. 			<<- function(t) x.interp(t)[INFECTEDNAMES]
+		x.interps	<-  sapply( names(x), function(n) approxfun(o[,1], o[,n], yleft=o[1,n], yright=o[nrow(o),n]) )		
+		x.interp 	<<- function(t) { sapply(x.interps, function(interp) interp(t) ) }  								#x.interp defined here
+		Y. 			<<- function(t) x.interp(t)[c('I0', 'I1', 'I2')]
 		F.interps 	<-  list()
 		for (k in 1:parameters$m)
 		{ 
@@ -266,7 +266,6 @@ cg.sde.varyparam<- function()
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=5000, I0_0=1, I1_0=1, I2_0=1, alpha = 4,
 								times=seq(0, 50, by=.1), sampleTime=50, phi=0.5)	
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
 	nsims			<- 20
 							
 	#bits of the model that are varied
@@ -290,10 +289,62 @@ cg.sde.varyparam<- function()
 	#with increasing gi:	depletion of susceptibles with gi~3. epidemic does not take off with gi~0.25, need at least 0.5
 }
 ################################################################################################
+cg.sde.get.pseudodata<- function()
+{
+	parms.vary.i	<- 8
+	bdt.i			<- NA
+	if(exists("argv"))
+	{
+		tmp<- na.omit(sapply(argv,function(arg)
+						{	switch(substr(arg,2,2),
+									n= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
+		if(length(tmp)>0) bdt.i<- tmp[1]
+		tmp<- na.omit(sapply(argv,function(arg)
+						{	switch(substr(arg,2,2),
+									i= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
+		if(length(tmp)>0) parms.vary.i<- tmp[1]						
+	}	
+	#
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
+	S0				<- 5e3
+	S0				<- 2e5
+	phi				<- 0.5
+	phi				<- 0.25
+	#parameter template
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+								S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
+								times=seq(0, 50, by=.1), sampleTime=50, phi=phi, mM.replicate=1e2)							
+	resume			<- 0
+	heights			<- seq(10, 50, length.out=50)
+	
+	#bits of the model that are varied
+	gi			<- c(0.5, 1, 3) 			#avg duration of I0
+	bf			<- c(2,4,8,16) 				#dampening of beta0
+	parms.vary	<- expand.grid(gi=gi, bf= bf)	
+	parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
+	if(!is.na(parms.vary.i))
+		parms.vary<- parms.vary[parms.vary.i,,drop=0]
+	
+	dummy		<- lapply(seq_len(nrow(parms.vary)),function(i)
+			{
+				cat(paste('\nprocess',i))
+				# load pseudo data set
+				parms								<- parms.template
+				parms[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
+				file								<- paste(dir.name, '/','pseudodata.S=',parms$S_0,'_gi',parms.vary[i,'gi'],'_bf',parms.vary[i,'bf'],'.R',sep='')
+				pseudo.datasets						<- cg.sde.get.pseudodata.for.param(parms, bdt.i=bdt.i, file=file)
+				if(is.na(bdt.i))
+				{
+					cat(paste('save pseudo data sets to file',file))
+					save(pseudo.datasets, file=file)
+				}				
+			})				
+}
+################################################################################################
 cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.i=NA, bdt.heights=seq(0, 50, length.out=50), distr.heights=seq(10, 50, length.out=50), file=NA)
 {
 	#define model
-	INFECTEDNAMES 		<<- c('I0', 'I1', 'I2')
 	tmp					<-  cg.sde.define()
 	F.skeleton			<<- tmp$F.skeleton
 	G.					<<- tmp$G
@@ -301,9 +352,7 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.i=NA, bdt.heig
 	solve.model.set.fgy	<-  tmp$solve.model.set.fgy
 	
 	#set up parameters
-	m				<-  parms$m
-	parms_truth		<<- parms	
-	FGYPARMS 		<<- parms_truth
+	m				<-  parms$m		
 	
 	if(!is.na(file))
 	{
@@ -326,7 +375,8 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.i=NA, bdt.heig
 				if(inherits(readAttempt, "try-error"))
 				{	
 					cat(paste('\nprocess bdt.i',i))
-					pseudo.data					<- solve.model.set.fgy(parms_truth)	
+					FGYPARMS					<<- parms
+					pseudo.data					<- solve.model.set.fgy(parms)	
 					pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
 					pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
 					pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]
@@ -338,8 +388,11 @@ cg.sde.get.pseudodata.for.param<- function(parms, bdt.n= 1e2, bdt.i=NA, bdt.heig
 					tmp							<- lapply( seq_len(parms$mM.replicate), function(b)
 						{
 							#	get moments for new model solution to F G Y
-							solve.model.set.fgy(parms)				
-							tmp					<- calculate.cluster.size.moments.from.model(parms$sampleTime, pseudo.data$sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
+							tmp					<- solve.model.set.fgy(parms)
+							tmp$stateIndices 	<- rep( 1:m, round( parms$phi * tmp$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size
+							tmp$sampleTimes 	<- rep(parms$sampleTime, length(tmp$stateIndices) )
+							tmp$sampleStates 	<- diag(m)[tmp$stateIndices,]							
+							tmp					<- calculate.cluster.size.moments.from.model(parms$sampleTime, tmp$sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
 							#	store moments as data.table
 							tmp$Mi				<- cbind( as.data.table(t( tmp$Mi )), height=tmp$heights, replicate=b )				
 							tmp2				<- sapply( seq_len( dim(tmp$Mij)[3] ), function(h)	tmp$Mij[,,h][upper.tri(tmp$Mij[,,1],diag=1)] )
@@ -366,7 +419,6 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 {
 	require(data.table)
 	#define model
-	INFECTEDNAMES 		<<- c('I0', 'I1', 'I2')
 	tmp					<-  cg.sde.define()
 	F.skeleton			<<- tmp$F.skeleton
 	G.					<<- tmp$G
@@ -374,10 +426,7 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 	solve.model.set.fgy	<-  tmp$solve.model.set.fgy
 	
 	#set up parameters
-	m				<-  parms$m
-	parms_truth		<<- parms	
-	FGYPARMS 		<<- parms_truth
-	
+	m				<-  parms$m		
 	if(!is.na(file))
 	{
 		if( substr(file, nchar(file)-1,nchar(file))!='.R') stop("file expected to end in .R")
@@ -390,8 +439,9 @@ cg.sde.get.mM.for.param<- function(parms, file=NA)
 	{		
 		tmp			<- lapply( seq_len(parms$mM.replicate), function(b)
 				{
+					FGYPARMS					<<- parms		
 					#	get moments for new model solution to F G Y
-					pseudo.data					<- solve.model.set.fgy(parms_truth)	
+					pseudo.data					<- solve.model.set.fgy(parms)	
 					pseudo.data$stateIndices 	<- rep( 1:m, round( parms$phi * pseudo.data$Y( parms$sampleTime ) ) ) # sample each of three states in proportion to size	 
 					pseudo.data$sampleTimes 	<- rep(parms$sampleTime, length(pseudo.data$stateIndices) )
 					pseudo.data$sampleStates 	<- diag(m)[pseudo.data$stateIndices,]					
@@ -1301,7 +1351,6 @@ cg.sde.fulllkl<- function()
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
 								times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
 	#
 	tmp					<-  cg.sde.define()
 	F.skeleton			<<- tmp$F.skeleton
@@ -1361,6 +1410,7 @@ cg.sde.fulllkl<- function()
 					if(lkl.compute.missing && inherits(readAttempt, "try-error"))
 					{
 						#	define F. G. Y. for 'parms'
+						FGYPARMS	<<- parms
 						dummy		<- solve.model.set.fgy(parms)	
 						#	compute lkl and time it takes	
 						tmp			<- system.time(
@@ -1386,24 +1436,29 @@ cg.sde.fulllkl<- function()
 					}
 					lkl
 				})
-		df.lkl	<- do.call('rbind', df.lkl)	
-		#	save lkl calculations
-		file	<- paste(dir.name, '/','lkl.S=',parms.template$S_0,'_gi0=',parms.obs[1,'gi'],'_bf0=',parms.obs[1,'bf'],'_fsc=',as.numeric(lkl.finiteSizeCorrections),'_dr=',as.numeric(lkl.discretizeRates),'.R', sep='')
-		cat(paste('\nsave lkl to file',file))
-		save(df.lkl, file=file)	
+		if(is.na(parms.sim.i))
+		{
+			df.lkl	<- do.call('rbind', df.lkl)	
+			#	save lkl calculations
+			file	<- paste(dir.name, '/','lkl.S=',parms.template$S_0,'_gi0=',parms.obs[1,'gi'],'_bf0=',parms.obs[1,'bf'],'_fsc=',as.numeric(lkl.finiteSizeCorrections),'_dr=',as.numeric(lkl.discretizeRates),'.R', sep='')
+			cat(paste('\nsave lkl to file',file))
+			save(df.lkl, file=file)	
+		}			
 	}	
-	#	produce heat map
-	tmp		<- subset( df.lkl, is.finite(lkl) )[, min(lkl)]	
-	set(df.lkl, which(is.infinite(df.lkl[,lkl])), 'lkl', tmp)	
-	file	<- paste(dir.name, '/','lkl.S=',parms.template$S_0,'_gi0=',parms.obs[1,'gi'],'_bf0=',parms.obs[1,'bf'],'_fsc=',as.numeric(lkl.finiteSizeCorrections),'_dr=',as.numeric(lkl.discretizeRates),'.pdf', sep='')
-	cat(paste('\nplot to file',file))
-	pdf(file, h=5, w=5)	
-	tmp				<- paste('gi0=',parms.obs[1,'gi'],' bf0=',parms.obs[1,'bf'],' fsc=',as.numeric(lkl.finiteSizeCorrections),' dr=',as.numeric(lkl.discretizeRates), sep='')
-	dummy			<- util.image.smooth(df.lkl[,gi], df.lkl[, bf], df.lkl[, lkl], xlab='gi', ylab='bf', nrow=50, palette="rob", ncol=50, nlevel=50, theta=.25, tol=1e-8, plot=1, cex.points=0, points.pch=20, points.col="black", contour.nlevels=7, contour.col="black", main=tmp)
-	points(parms.obs[1,'gi'], parms.obs[1,'bf'], pch=18, cex=2)
-	dev.off()
-			
-	
+	if(is.na(parms.sim.i))
+	{
+		#	produce heat map
+		tmp		<- subset( df.lkl, is.finite(lkl) )[, min(lkl)]	
+		set(df.lkl, which(is.infinite(df.lkl[,lkl])), 'lkl', tmp)	
+		file	<- paste(dir.name, '/','lkl.S=',parms.template$S_0,'_gi0=',parms.obs[1,'gi'],'_bf0=',parms.obs[1,'bf'],'_fsc=',as.numeric(lkl.finiteSizeCorrections),'_dr=',as.numeric(lkl.discretizeRates),'.pdf', sep='')
+		cat(paste('\nplot to file',file))
+		pdf(file, h=5, w=5)	
+		tmp				<- paste('gi0=',parms.obs[1,'gi'],' bf0=',parms.obs[1,'bf'],' fsc=',as.numeric(lkl.finiteSizeCorrections),' dr=',as.numeric(lkl.discretizeRates), sep='')
+		dummy			<- util.image.smooth(df.lkl[,gi], df.lkl[, bf], df.lkl[, lkl], xlab='gi', ylab='bf', nrow=50, palette="rob", ncol=50, nlevel=50, theta=.25, tol=1e-8, plot=1, cex.points=0, points.pch=20, points.col="black", contour.nlevels=7, contour.col="black", main=tmp)
+		points(parms.obs[1,'gi'], parms.obs[1,'bf'], pch=18, cex=2)
+		dev.off()
+		
+	}
 }
 ################################################################################################
 cg.sde.eM.pseudolkl.fit3D<- function()
@@ -1429,7 +1484,6 @@ cg.sde.eM.pseudolkl.fit3D<- function()
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 			S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
 			times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')	
 	resume			<- 1
 		
 	#	bits of the model that are varied
@@ -1493,6 +1547,269 @@ cg.sde.eM.pseudolkl.fit3D<- function()
 	
 }
 ################################################################################################
+cg.sde.eMij.pseudodata.plot.eMid.mMid.distr<- function(df.obs, df.sim, file=NA, lab='eMij', heights.by=5)
+{
+	require(RColorBrewer)
+	plot			<- !is.na(file)
+	heights			<- unique( df.obs[, height] )	
+	heights.i		<- seq(1, length(heights), by=heights.by)
+	state.cols.obs	<- which( grepl('state',colnames( df.obs )) )
+	state.cols.sim	<- which( grepl('state',colnames( df.sim )) )
+	state.c			<- t( combn(length( state.cols.obs ),2) )
+	if(plot)
+	{
+		pdf(file=file, w=4*nrow( state.c ), h=4)
+		par(mfcol=c(1,nrow( state.c )))
+		cols		<- brewer.pal(3, 'Set1')[1]									
+		legend.txt	<- c('calculated mMij under theta0')
+		dummy	<- lapply( heights.i, function(ih)
+				{					 					
+					dummy	<- sapply( seq_len(nrow(state.c)), function(j)
+							{
+								tmpx.sim	<- unclass( subset(df.sim, height==heights[ih])[,state.cols.sim[state.c[j,1]],with=0] )[[1]]
+								tmpy.sim	<- unclass( subset(df.sim, height==heights[ih])[,state.cols.sim[state.c[j,2]],with=0] )[[1]]
+								tmpx.obs	<- unclass( subset(df.obs, height==heights[ih])[,state.cols.obs[state.c[j,1]],with=0] )[[1]]
+								tmpy.obs	<- unclass( subset(df.obs, height==heights[ih])[,state.cols.obs[state.c[j,2]],with=0] )[[1]]
+								
+								plot(tmpx.sim, tmpy.sim, xlim=range(c(tmpx.sim,tmpx.obs)), ylim=range(c(tmpy.sim,tmpy.obs)), main=paste(lab,' ','height=',round(heights[ih],d=1),sep=''), xlab=colnames( df.sim )[state.cols.sim[state.c[j,1]]], ylab=colnames( df.sim )[state.cols.sim[state.c[j,2]]], bty='n', col=util.fade.col(cols[1],0.2), pch=18 )								
+								points(tmpx.obs, tmpy.obs)																
+							})
+					legend('topleft', bty='n', border=NA, fill=cols, legend=legend.txt)								
+				})
+		dev.off()
+	}		 
+}
+################################################################################################
+cg.sde.eMij.pseudodata.for.param<- function(pseudo.datasets, resume=1, file.r=NA, file.pdf=NA)
+{
+	if(resume && !is.na(file.r))
+	{
+		cat(paste("\ntry load ",paste(file.r,'_fit1D.R',sep='')))
+		options(show.error.messages = FALSE, warn=1)		
+		readAttempt<-try(suppressWarnings(load(paste(file.r,'_fit1D.R',sep=''))))						
+		options(show.error.messages = TRUE)								
+	}	
+	if(!resume || inherits(readAttempt, "try-error"))
+	{
+		library(RColorBrewer)
+		
+		m			<- nrow( pseudo.datasets[[1]]$eMi )
+		heights		<- round(unique( pseudo.datasets[[1]]$mMi[,height] ), d=2)
+		height.diff	<- max( ( diff( heights )) )
+		#
+		#	collate data structures
+		#
+		
+		#collect empirical second moments over bdt replicates and for all heights
+		df.eMij	<- lapply(seq_along(pseudo.datasets), function(k)
+				{										
+					tmp				<- sapply( seq_len( dim(pseudo.datasets[[k]]$eMij)[3] ), function(h)	pseudo.datasets[[k]]$eMij[,,h][upper.tri(pseudo.datasets[[k]]$eMij[,,1],diag=1)] )
+					rownames(tmp)	<- sapply(1:m, function(i) paste('state.',i,1:m,sep=''))[upper.tri(pseudo.datasets[[k]]$eMij[,,1],diag=1)] 
+					cbind( as.data.table(t( tmp )), height=heights, bdt=k )								
+				})
+		df.eMij	<- do.call('rbind', df.eMij)
+		#collect calculated second moments under the true parameter theta0 over bdt replicates and 100 replicates for each bdt and for all heights
+		df.mMij	<- lapply(seq_along(pseudo.datasets), function(k)
+				{					
+					set( pseudo.datasets[[k]]$mMij, NULL, 'height', round(pseudo.datasets[[k]]$mMij[,height], d=2)	)
+					cbind( pseudo.datasets[[k]]$mMij, bdt=k )										
+				})
+		df.mMij	<- do.call('rbind', df.mMij)					
+		#
+		#	clean up
+		#				
+		#	clean up df.eMij: remove numerical inaccuracies
+		df.eMij.states	<- colnames(df.eMij)[ grepl('state',colnames(df.eMij)) ]
+		cmd				<- paste('is.nan(',df.eMij.states,')',' | ','abs(',df.eMij.states,')<',1e-6,sep='', collapse=' | ')	
+		cmd				<- paste('df.eMij[ which(!(',cmd,')), ]',sep='')
+		df.eMij			<- eval( parse(text=cmd) )
+		#	clean up df.eMij: keep only runs in height
+		cmd				<- paste('{ ok.last<- which(!c(TRUE, diff(height)<=height.diff*1.5 ));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));  list(', paste(df.eMij.states,'=',df.eMij.states,'[seq_len(ok.last)]',sep='', collapse=', '),', height=height[seq_len(ok.last)]) }', sep='')
+		cmd				<- paste('df.eMij[,',cmd,', by="bdt"]')
+		df.eMij			<- eval( parse(text=cmd) )		
+		#	clean up df.mMij: remove numerical inaccuracies
+		df.mMij.states	<- colnames(df.mMij)[ grepl('state',colnames(df.mMij)) ]
+		cmd				<- paste('is.nan(',df.mMij.states,')',' | ','abs(',df.mMij.states,')<',1e-6,sep='', collapse=' | ')	
+		cmd				<- paste('df.mMij[ which(!(',cmd,')), ]',sep='')
+		df.mMij			<- eval( parse(text=cmd) )
+		#	clean up df.mMij: keep only runs in height
+		cmd				<- paste('{ ok.last<- which(!c(TRUE, diff(height)<=height.diff*1.5 ));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));  list(', paste(df.mMij.states,'=',df.mMij.states,'[seq_len(ok.last)]',sep='', collapse=', '),', height=height[seq_len(ok.last)]) }', sep='')
+		cmd				<- paste('df.mMij[,',cmd,', by=c("bdt","replicate")]')
+		df.mMij			<- eval( parse(text=cmd) )
+		#
+		#	plot eMij and mMij
+		cg.sde.eMij.pseudodata.plot.eMid.mMid.distr(df.eMij, df.mMij, file=paste(file.pdf, '_distr_2D.pdf',sep=''), lab='eMij', heights.by=5)
+		#	the eMijs can be broader than the mMijs, is this because we dont call 'solve' for the mMijs?
+		#	very high correlation between the eMijs and mMijs
+		#	for too small heights, it just does not make sense to look at the expected covariance of states i-j within a cluster. we need clusters of sufficient size, otherwise the variance is not meaningful
+
+		stop()
+		
+		
+		
+		#
+		#	get delta eMi and mMi
+		#		
+		df.eMi[, dummy:= -height]
+		setkey(df.eMi, bdt, dummy)
+		cmd		<- paste('state.',1:m,'= -diff(state.',1:m,')',sep='', collapse=',')
+		cmd		<- paste('df.eMi[, list(',cmd,', height=height[-1]), by="bdt"]',sep='')
+		df.eMid	<- eval( parse(text=cmd) )
+		setkey(df.eMid, bdt, height)
+		#		
+		df.mMi[, dummy:= -height]		
+		setkey(df.mMi, bdt, replicate, dummy)
+		cmd		<- paste('state.',1:m,'= -diff(state.',1:m,')',sep='', collapse=',')
+		cmd		<- paste('df.mMi[, list(',cmd,', height=height[-1]), by=c("bdt","replicate")]',sep='')
+		df.mMid	<- eval( parse(text=cmd) )
+		setkey(df.mMid, bdt, replicate, height)
+		#	remove <= zero eMid		
+		cmd		<- paste('state.',1:m,'<=',0,sep='', collapse=' | ')	
+		tmp		<- eval( parse(text=paste('df.eMid[, which(',cmd,')]',sep='')) )
+		set(df.eMid, tmp, 'height', NA)
+		cmd		<- paste('{ ok.last<- which(is.na(height));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));  list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+		df.eMid	<- eval( parse(text=paste('df.eMid[,',cmd,', by="bdt"]')) )
+		#	remove <= zero mMid 	
+		cmd		<- paste('state.',1:m,'<=',0,sep='', collapse=' | ')	
+		tmp		<- eval( parse(text=paste('df.mMid[, which(',cmd,')]',sep='')) )
+		set(df.mMid, tmp, 'height', NA)
+		cmd		<- paste('{ ok.last<- which(is.na(height));  ok.last<- ifelse(length(ok.last), ok.last-1, length(height));  list(', paste('state.',1:m,'= state.',1:m,'[seq_len(ok.last)]',sep='', collapse=','),', height=height[seq_len(ok.last)]) }', sep='')
+		df.mMid	<- eval( parse(text=paste('df.mMid[,',cmd,', by=c("bdt","replicate")]')) )
+		
+		
+		
+		if(0)	#	check if deltas make sense
+		{
+			ih<- 20
+			subset( df.eMi, height==heights[ih])[, list(su1=summary(state.1), su2=summary(state.2), su3=summary(state.3), info=names(summary(state.1)))]		
+			subset( df.mMi, height==heights[ih])[, list(su1=summary(state.1), su2=summary(state.2), su3=summary(state.3), info=names(summary(state.1)))]
+			subset( df.eMid, height==heights[ih])[, list(su1=summary(state.1), su2=summary(state.2), su3=summary(state.3), info=names(summary(state.1)))]
+			subset( df.mMid, height==heights[ih] & replicate==1)[, list(su1=summary(state.1), su2=summary(state.2), su3=summary(state.3), info=names(summary(state.1)))]
+		}
+		if(0)	#	a few diagnostic plots
+		{
+			cg.sde.eM.pseudodata.plot.eMi.distr(df.eMi, lab='eM', method='2D', file=paste(file.pdf, '_eMi_2D.pdf',sep=''))
+			cg.sde.eM.pseudodata.plot.eMi.distr(df.eMid, lab='delta eM', method='1D', file=paste(file.pdf, '_eMid_1D.pdf',sep='') )
+			cg.sde.eM.pseudodata.plot.eMi.distr(df.eMid, lab='delta eM', method='2D', file=paste(file.pdf, '_eMid_2D.pdf',sep='') )
+		}
+		if(1)	#	compare 2D distributions of df.eMid and df.mMid
+		{
+			cg.sde.eM.pseudodata.plot.eMid.mMid.distr(df.eMid, df.mMid, paste(file.pdf, '_eMid_2D.pdf',sep=''), lab='delta eM')	
+		}
+		if(1)	#	evaluate PACFS
+		{
+			#	get difference between log df.eMid  and 	log mean df.mMid			
+			cmd				<- paste('state.',1:m,'= log(mean(state.',1:m,'))',sep='', collapse=',')
+			cmd				<- paste('df.mMid[, list(',cmd,'), by=c("bdt","height")]',sep='')
+			df.mMidl<- eval( parse(text=cmd) )
+			setnames(df.mMidl, paste('state.',1:m,sep=''), paste('mM.state.',1:m,sep='')) 		
+			cmd				<- paste('state.',1:m,'= log(state.',1:m,')',sep='', collapse=',')
+			cmd				<- paste('df.eMid[, list(',cmd,', height=height, bdt=bdt)]',sep='')
+			df.eMidl		<- eval( parse(text=cmd) )
+			df.eMidl[, , by="bdt"]		
+			df.dMidl		<- merge(df.eMidl, df.mMidl, by=c("bdt",'height'))
+			cmd				<- paste('state.',1:m,'= state.',1:m,' - mM.state.',1:m, sep='', collapse=',')
+			cmd				<- paste('df.dMidl[, list(',cmd,'), by=c("bdt","height")]',sep='')
+			df.dMidl		<- eval( parse(text=cmd) )
+			dummy			<- cg.sde.eM.pseudodata.plot.eMidl.acf(df.dMidl, file=paste(file.pdf, '_dMidl_acf.pdf',sep=''))			
+			tmp				<- merge( data.table( height=df.dMidl[, unique(height)][ c(TRUE, FALSE) ] ), df.dMidl, by='height' )
+			setkey(tmp, bdt, height)
+			dummy			<- cg.sde.eM.pseudodata.plot.eMidl.acf(tmp, file=paste(file.pdf, '_dMidl.2_acf.pdf',sep=''))			
+			tmp				<- merge( data.table( height=df.dMidl[, unique(height)][ c(TRUE, FALSE, FALSE, FALSE) ] ), df.dMidl, by='height' )
+			setkey(tmp, bdt, height)
+			dummy			<- cg.sde.eM.pseudodata.plot.eMidl.acf(tmp, file=paste(file.pdf, '_dMidl.4_acf.pdf',sep=''))			
+			tmp				<- merge( data.table( height=df.dMidl[, unique(height)][ c(TRUE, rep(FALSE,7)) ] ), df.dMidl, by='height' )
+			setkey(tmp, bdt, height)
+			dummy			<- cg.sde.eM.pseudodata.plot.eMidl.acf(tmp, file=paste(file.pdf, '_dMidl.8_acf.pdf',sep=''))			
+		}
+		
+		
+		# compare different 1D pseudo lkls for each tree height
+		df.fit1d	<- cg.sde.eM.pseudodata.fit1DmMid(df.eMid, df.mMid, file=paste(file.pdf, '_eMid_1D_fit.pdf',sep=''))
+		
+		cat(paste("\nsave df.fit to ",paste(file.r,'_fit1D.R',sep='')))
+		save(df.eMi, df.mMi, df.eMid, df.mMid, df.eMij, df.mMij, df.dMidl, df.fit1d, file=paste(file.r,'_fit1D.R',sep=''))		
+	}
+	df.fit1d
+}
+################################################################################################
+cg.sde.eMij.pseudodata<- function()
+{
+	require(data.table)
+	my.mkdir(HOME, 'MOMSDE' )
+	dir.name		<- paste(HOME, 'MOMSDE',sep='/')
+	S0				<- 5e3
+	S0				<- 2e5
+	phi				<- 0.5
+	phi				<- 0.25
+	#parameter template
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
+			S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
+			times=seq(0, 50, by=.1), sampleTime=50, phi=phi)		
+	resume			<- 0
+	heights			<- seq(10, 50, length.out=50)
+	
+	if(resume)
+	{
+		file.r	<- 	paste(dir.name,'/',"pseudo.eMij.lkl.S=",parms.template$S_0,"_fit1D.R",sep='')
+		cat(paste("\ntry load ",file.r))
+		options(show.error.messages = FALSE, warn=1)		
+		readAttempt<-try(suppressWarnings(load(file.r)))						
+		options(show.error.messages = TRUE)								
+	}	
+	if(!resume || inherits(readAttempt, "try-error"))
+	{
+		#bits of the model that are varied
+		gi			<- c(0.5, 1, 3) 			#avg duration of I0
+		bf			<- c(2,4,8,16) 				#dampening of beta0
+		parms.vary	<- expand.grid(gi=gi, bf= bf)	
+		parms.vary	<- cbind(parms.vary, gamma0= 1/parms.vary[,'gi'], beta1= parms.template[['beta0']]/parms.vary[,'bf'])
+		
+		df.fit		<- lapply(seq_len(nrow(parms.vary)),function(i)
+				{
+					i<- 8
+					cat(paste('\nprocess',i))
+					# load pseudo data set
+					parms								<- parms.template
+					parms[c('gamma0','beta1','beta2')]	<- parms.vary[i,c('gamma0','beta1','beta1')]	
+					file								<- paste("pseudodata.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],".R",sep='')
+					file								<- paste(dir.name,file,sep='/')
+					if( is.na(file.info(file)$size) )
+						return(data.table(height=numeric(0), t.stat=numeric(0), p=numeric(0), state=numeric(0), replicate=numeric(0), distr=character(0), method=character(0), gi=numeric(0), bf=numeric(0)))
+					cat(paste("\nload file=",file))
+					tmp									<- load(file)
+					# get pseudo.lkl p-values of potential pseudo lkl densities to the empirical density
+					
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+					file.r			<- paste(dir.name,'/',"pseudo.eMij.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],sep='')								
+					file.pdf		<- paste(dir.name,'/',"pseudo.eMij.lkl.S=",parms.template$S_0,"_gi=",parms.vary[i,'gi'],"_bf=",parms.vary[i,'bf'],sep='')				
+					df.fit			<- cg.sde.eM.pseudodata.for.param(pseudo.datasets, resume=resume, file.r=file.r, file.pdf=file.pdf)
+					df.fit[, gi:=parms.vary[i,'gi']]
+					df.fit[, bf:=parms.vary[i,'bf']]
+					df.fit
+				})
+		df.fit	<- do.call('rbind', df.fit)
+		file.r	<- 	paste(dir.name,'/',"pseudo.eM.lkl.S=",parms.template$S_0,"_fit1D.R",sep='')
+		cat(paste('\nsave df.fit to',file.r))
+		save(df.fit, file=file.r)	
+	}
+	
+	
+	file.pdf	<- 	paste(dir.name,'/',"pseudo.eM.lkl.S=",parms.template$S_0,"_fit1Dpvalue.pdf",sep='')
+	cg.sde.eM.pseudodata.fit1DmMid.plot.pvalue(df.fit, file.pdf)	
+	
+}
+################################################################################################
 cg.sde.eM.pseudodata<- function()
 {
 	require(data.table)
@@ -1506,7 +1823,6 @@ cg.sde.eM.pseudodata<- function()
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 			S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
 			times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
 	resume			<- 0
 	heights			<- seq(10, 50, length.out=50)
 	
@@ -1572,7 +1888,6 @@ cg.sde.csize.pseudodata<- function()
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
 								times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
 	run.old.version	<- 0
 	resume			<- 0
 	heights			<- seq(10, 50, length.out=50)
@@ -1789,7 +2104,6 @@ cg.sde.get.mM<- function()
 	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=2e5, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
 								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25, mM.replicate= 100)	
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
 	file.parms		<- paste(dir.name, '/pseudo.mM.S=',parms.template$S_0,'_parms.R', sep='')
 	file.mM			<- paste(dir.name, '/pseudo.mM.S=',parms.template$S_0,'_mM.R', sep='')
 	
@@ -1841,9 +2155,7 @@ cg.sde.nsim.mM<- function()
 	#~ parms_truth <<- list(gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 0.775, beta1=0.08, beta2=0.08, S0=2500, alpha = .05) 
 	parms_truth 	<<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
 								S_0=2e5, I0_0=1, I1_0=1, I2_0=1, alpha = 4,
-								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25) 
-	FGYPARMS 		<<- parms_truth
-	INFECTEDNAMES 	<<- c('I0', 'I1', 'I2')
+								times=seq(0, 50, by=.1), sampleTime=50, phi=0.25) 	
 	nsims			<- 1
 	
 	tmp					<- cg.sde.define()
@@ -1862,6 +2174,7 @@ cg.sde.nsim.mM<- function()
 	# simulate coalescent tree with true parameters
 	file			<- paste('nsim.mM.epidemic.S=',parms_truth$S_0,'.pdf',sep='')
 	file			<- paste(dir.name,file,sep='/')
+	FGYPARMS 		<<- parms_truth
 	dummy			<- solve.model.set.fgy(parms_truth, file) 
 	Y.sampleTime 	<- Y.(parms_truth$sampleTime)
 	m				<- 3
@@ -1885,41 +2198,3 @@ cg.sde.nsim.mM<- function()
 	cat(paste("\nplot results"))
 	cg.sde.comparison.plots3(heights, eM , mM, dir.name)	
 }
-
-
-# calculate model stats
-#~ mM_time <- system.time({
-#~   modelMoments = mM <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
-#~ })
-#~ cg.sde.comparison.plots(eM, mM) 
-
-#~ now do a comparison with model parameters different from true parameters 
-#~ parameters <- parms_truth
-#~ parameters$beta0 <- parms_truth$beta0/2
-#~ parameters$beta1 <- parms_truth$beta1*5
-#~ solve.model.set.fgy(parameters)
-#~ modelMoments = mM <- calculate.cluster.size.moments.from.model(sampleTime, sampleStates , timeResolution = 50, discretizeRates=TRUE, fgyResolution = 100 , integrationMethod = 'rk4')
-#~ cg.sde.comparison.plots(eM, mM, solve.model.set.fgy, parms_truth) 
-
-
-#~ compare computation times with likelihood
-#~ solve.model.set.fgy(parms_truth)
-#~ likelihood_time <- system.time({
-#~   print( paste( 'likelihood', coalescent.log.likelihood(bdt, integrationMethod = 'rk4', finiteSizeCorrections=TRUE, maxHeight=0, discretizeRates=TRUE, fgyResolution = 100) ))
-#~ })
-#~ print('coalescent tree time')
-#~ print(coalescentTree_time)
-#~ print('running time moments')
-#~ print(mM_time)
-#~ print('running time likelihood')
-#~ print(likelihood_time)
-#~ [1] "likelihood -2225.51092458556"
-#~ [1] "coalescent tree time"
-#~    user  system elapsed 
-#~   0.704   0.000   0.701 
-#~ [1] "running time moments"
-#~    user  system elapsed 
-#~   0.216   0.000   0.216 
-#~ [1] "running time likelihood"
-#~    user  system elapsed 
-#~  15.121   0.004  19.464 
