@@ -1267,8 +1267,9 @@ cg.sde.fulllkl<- function()
 {
 	require(data.table)	
 	#	input
-	parms.obs.i		<- 8
-	parms.sim.i		<- 1	
+	parms.obs.i					<- 8
+	parms.sim.i					<- NA
+	lkl.finiteSizeCorrections	<- FALSE	#TRUE
 	if(exists("argv"))
 	{
 		tmp<- na.omit(sapply(argv,function(arg)
@@ -1278,7 +1279,11 @@ cg.sde.fulllkl<- function()
 		tmp<- na.omit(sapply(argv,function(arg)
 						{	switch(substr(arg,2,2),
 									i= return(as.numeric(substr(arg,4,nchar(arg)))),NA)	}))
-		if(length(tmp)>0) parms.sim.i<- tmp[1]						
+		if(length(tmp)>0) parms.sim.i<- tmp[1]		
+		tmp<- na.omit(sapply(argv,function(arg)
+						{	switch(substr(arg,2,4),
+									fsc= return(as.numeric(substr(arg,6,nchar(arg)))),NA)	}))
+		if(length(tmp)>0) lkl.finiteSizeCorrections<- as.logical( tmp[1] )		
 	}	
 	#	fixed setup
 	my.mkdir(HOME, 'MOMSDE' )
@@ -1288,7 +1293,7 @@ cg.sde.fulllkl<- function()
 	phi							<- 0.5
 	phi							<- 0.25
 	lkl.integrationMethod		<- 'euler'
-	lkl.finiteSizeCorrections	<- FALSE	#TRUE
+	lkl.compute.missing			<- TRUE	#FALSE	
 	lkl.discretizeRates			<- TRUE
 	lkl.fgyResolution			<- 100
 	lkl.maxHeight				<- 0	
@@ -1328,38 +1333,76 @@ cg.sde.fulllkl<- function()
 	parms.sim		<- parms.vary
 	parms.vary		<- NULL
 	if(!is.na(parms.sim.i))
-		parms.sim	<- parms.sim[parms.sim.i,,drop=0]	
+		parms.sim	<- parms.sim[parms.sim.i,,drop=0]
+	#	resume likelihood if possible
+	file	<- paste(dir.name, '/','lkl.S=',parms.template$S_0,'_gi0=',parms.obs[1,'gi'],'_bf0=',parms.obs[1,'bf'],'_fsc=',as.numeric(lkl.finiteSizeCorrections),'_dr=',as.numeric(lkl.discretizeRates),'.R', sep='')
+	cat(paste("\ntry load ",file))
+	options(show.error.messages = FALSE, warn=1)		
+	readAttempt		<- try(suppressWarnings(load(file)))						
+	options(show.error.messages = TRUE)	
 	#
-	#	compute likelihoods of pseudo.data.bdt for all parms in parms.sim
-	#
-	lkl	<- lapply( seq_len(nrow(parms.sim)), function(i)
-			{
-				cat(paste("\nprocess gi=",parms.sim[i,'gi'],", bf=",parms.sim[i,'bf'],', i=',i,'parms.sim.i=',parms.sim.i))
-				parms								<- parms.template
-				parms[c('gamma0','beta1','beta2')]	<- parms.sim[i,c('gamma0','beta1','beta1')]					
-				#	see if lkl already computed
-				file			<- paste(dir.name.lkl,'/',"lkl.S=",parms.template$S_0,"_gi=",parms.sim[i,'gi'],"_bf=",parms.sim[i,'bf'],".R",sep='')
-				cat(paste("\ntry load ",file))
-				options(show.error.messages = FALSE, warn=1)		
-				readAttempt		<- try(suppressWarnings(load(file)))						
-				options(show.error.messages = TRUE)								
-				#	compute if not yet there
-				if(inherits(readAttempt, "try-error"))
+	if(inherits(readAttempt, "try-error"))
+	{
+		#
+		#	compute likelihoods of pseudo.data.bdt for all parms in parms.sim
+		#
+		df.lkl	<- lapply( seq_len(nrow(parms.sim)), function(i)
 				{
-					#	define F. G. Y. for 'parms'
-					dummy		<- solve.model.set.fgy(parms)	
-					#	compute lkl and time it takes	
-					tmp			<- system.time(
-							{
-								lkl <- coalescent.log.likelihood(pseudo.data.bdt, integrationMethod = lkl.integrationMethod, finiteSizeCorrections=lkl.finiteSizeCorrections, maxHeight=lkl.maxHeight, discretizeRates=lkl.discretizeRates, fgyResolution = lkl.fgyResolution)
-							})
-					lkl			<- data.table(lkl=lkl, sys.time=tmp, call='coalescent.log.likelihood', integrationMethod=lkl.integrationMethod, finiteSizeCorrections=lkl.finiteSizeCorrections, discretizeRates=lkl.discretizeRates, fgyResolution=lkl.fgyResolution, maxHeight=lkl.maxHeight)
-					cat(paste("\nsave lkl to file=",file))
-					save(lkl, file=file)
-				}
-				lkl					
-			})
-	lkl	<- do.call('rbind', lkl)
+					cat(paste("\nprocess gi=",parms.sim[i,'gi'],", bf=",parms.sim[i,'bf'],', i=',i,'parms.sim.i=',parms.sim.i))
+					parms								<- parms.template
+					parms[c('gamma0','beta1','beta2')]	<- parms.sim[i,c('gamma0','beta1','beta1')]					
+					#	see if lkl already computed
+					file			<- paste(dir.name.lkl,'/',"lkl.S=",parms.template$S_0,"_gi=",parms.sim[i,'gi'],"_bf=",parms.sim[i,'bf'],".R",sep='')
+					cat(paste("\ntry load ",file))
+					options(show.error.messages = FALSE, warn=1)		
+					readAttempt		<- try(suppressWarnings(load(file)))						
+					options(show.error.messages = TRUE)								
+					#	compute if not yet there
+					if(lkl.compute.missing && inherits(readAttempt, "try-error"))
+					{
+						#	define F. G. Y. for 'parms'
+						dummy		<- solve.model.set.fgy(parms)	
+						#	compute lkl and time it takes	
+						tmp			<- system.time(
+								{
+									lkl <- coalescent.log.likelihood(pseudo.data.bdt, integrationMethod = lkl.integrationMethod, finiteSizeCorrections=lkl.finiteSizeCorrections, maxHeight=lkl.maxHeight, discretizeRates=lkl.discretizeRates, fgyResolution = lkl.fgyResolution)
+								})
+						lkl			<- data.table(lkl=lkl, sys.time=tmp, call='coalescent.log.likelihood', integrationMethod=lkl.integrationMethod, finiteSizeCorrections=lkl.finiteSizeCorrections, discretizeRates=lkl.discretizeRates, fgyResolution=lkl.fgyResolution, maxHeight=lkl.maxHeight)
+						cat(paste("\nsave lkl to file=",file))
+						save(lkl, file=file)
+					}
+					if(!lkl.compute.missing && inherits(readAttempt, "try-error"))
+					{
+						lkl			<- data.table(	lkl=numeric(0), sys.time=numeric(0), call=character(0), integrationMethod=character(0), finiteSizeCorrections=logical(0), discretizeRates=logical(0), fgyResolution=numeric(0), maxHeight=numeric(0),
+								gi=numeric(0), bf=numeric(0), gi0=numeric(0), bf0=numeric(0))			
+					}
+					if(nrow(lkl))
+					{
+						lkl[, gi:=parms.sim[i,'gi']]
+						lkl[, bf:=parms.sim[i,'bf']]
+						lkl[, gi0:=parms.obs[1,'gi']]
+						lkl[, bf0:=parms.obs[1,'bf']]				
+						lkl	<- lkl[3,]						
+					}
+					lkl
+				})
+		df.lkl	<- do.call('rbind', df.lkl)	
+		#	save lkl calculations
+		file	<- paste(dir.name, '/','lkl.S=',parms.template$S_0,'_gi0=',parms.obs[1,'gi'],'_bf0=',parms.obs[1,'bf'],'_fsc=',as.numeric(lkl.finiteSizeCorrections),'_dr=',as.numeric(lkl.discretizeRates),'.R', sep='')
+		cat(paste('\nsave lkl to file',file))
+		save(df.lkl, file=file)	
+	}	
+	#	produce heat map
+	tmp		<- subset( df.lkl, is.finite(lkl) )[, min(lkl)]	
+	set(df.lkl, which(is.infinite(df.lkl[,lkl])), 'lkl', tmp)	
+	file	<- paste(dir.name, '/','lkl.S=',parms.template$S_0,'_gi0=',parms.obs[1,'gi'],'_bf0=',parms.obs[1,'bf'],'_fsc=',as.numeric(lkl.finiteSizeCorrections),'_dr=',as.numeric(lkl.discretizeRates),'.pdf', sep='')
+	cat(paste('\nplot to file',file))
+	pdf(file, h=5, w=5)	
+	tmp				<- paste('gi0=',parms.obs[1,'gi'],' bf0=',parms.obs[1,'bf'],' fsc=',as.numeric(lkl.finiteSizeCorrections),' dr=',as.numeric(lkl.discretizeRates), sep='')
+	dummy			<- util.image.smooth(df.lkl[,gi], df.lkl[, bf], df.lkl[, lkl], xlab='gi', ylab='bf', nrow=50, palette="rob", ncol=50, nlevel=50, theta=.25, tol=1e-8, plot=1, cex.points=0, points.pch=20, points.col="black", contour.nlevels=7, contour.col="black", main=tmp)
+	points(parms.obs[1,'gi'], parms.obs[1,'bf'], pch=18, cex=2)
+	dev.off()
+			
 	
 }
 ################################################################################################

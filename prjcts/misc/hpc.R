@@ -44,10 +44,11 @@ cg.cmd.hpccaller<- function(outdir, outfile, cmd)
 
 cg.pipeline.coalescent.log.likelihood<- function()
 {
-	dummy<- sapply(1:10, function(i)	
+	lkl.finiteSizeCorrections	<- 1
+	dummy<- sapply(1:1, function(i)	
 			{
 				cmd		<- paste(HOME,'/startme.R', sep='')
-				cmd		<- paste(cmd, ' -exe=LKL.SDE -o=8 -i=',i,sep='')	
+				cmd		<- paste(cmd, ' -exe=LKL.SDE -o=8 -i=',i,' -fsc=',lkl.finiteSizeCorrections,sep='')	
 				cmd		<- cg.cmd.hpcwrapper(cmd, hpc.walltime=3, hpc.mem='470mb', hpc.nproc=1, hpc.q=NA)	
 				file	<- paste('cglk',paste(strsplit(date(),split=' ')[[1]],collapse='_',sep=''),sep='.')	
 				cg.cmd.hpccaller( SCRIPT, file, cmd )	
