@@ -194,37 +194,6 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 	return ( list(  unname(Pi1s), unname(A1), unname (L1) ) )
 }
 
-.dL.unstructuredModel <- function(h, L, parms, globalParms=NULL, ...){
-	if (!is.null(globalParms)) { F. <- globalParms$F.; G. <- globalParms$G.; Y. <- globalParms$Y. ; 
-	   USE_DISCRETE_FGY <- globalParms$USE_DISCRETE_FGY; 
-	   FGY_INDEX <- globalParms$FGY_INDEX
-	   FGY_RESOLUTION <- globalParms$FGY_RESOLUTION
-	   FGY_H_BOUNDARIES <- globalParms$FGY_H_BOUNDARIES
-	 } 
-	# conditional on no coalescent
-	t <- parms$treeT - h
-	A <- parms$A
-	if (USE_DISCRETE_FGY & !is.null(globalParms)){
-		if (FGY_INDEX < FGY_RESOLUTION &  h > FGY_H_BOUNDARIES[FGY_INDEX])  {globalParms$FGY_INDEX <- FGY_INDEX+1 ; return(.dL(h, y, parms,globalParms=globalParms))}
-		if ( FGY_INDEX > 1 ) { if ( h< FGY_H_BOUNDARIES[FGY_INDEX-1]) { globalParms$FGY_INDEX <- FGY_INDEX-1 ; return(.dL(h, y, parms,globalParms=globalParms))} }
-	}
-	.G <- G.(t) 
-	.F <- F.(t)
-	.Y <- Y.(t) 
-	X1 <- pmax(A / .Y, 0); 
-	dL <- .F * X1^2
-	return( list(dL) )
-}
-
-.solve.L <- function(h0, h1, L, tree, A0, globalParms=NULL ) 
-{
-	parameters 		<- list(treeT = tree$maxSampleTime, m = tree$m, A=A0)
-		tryCatch({
-					out0 <- ode(y=y0, times=c(h0, h1), func=.dL.unstructuredModel, parms=parameters, globalParms=globalParms, method=globalParms$INTEGRATIONMETHOD ) 
-				}, error = function(e) browser() )
-		L1 <- out0[nrow(out0),ncol(out0)]
-		return( list( L1) )
-}
 
 
 .calculate.internal.states.unstructuredModel <- function(tree, maxHeight=0, globalParms = NULL)
@@ -243,45 +212,112 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 		eventTimes <- eventTimes[eventTimes<=maxHeight]}
 	S <- 1
 	L <- 0
+	
+	FGY_INDEX <- 1 
+	
+	get.fgy <- function(h,t=NULL)
+	{
+		if (globalParms$USE_DISCRETE_FGY)
+		{
+			while (FGY_INDEX < globalParms$FGY_RESOLUTION &  h > globalParms$FGY_H_BOUNDARIES[FGY_INDEX])  
+			{
+				FGY_INDEX <- FGY_INDEX+1 ; 
+			}
+			if ( (FGY_INDEX > 1) ) 
+			{
+				while ( h< globalParms$FGY_H_BOUNDARIES[FGY_INDEX-1]) 
+				{
+					if (FGY_INDEX==1) break;
+					FGY_INDEX <- FGY_INDEX-1 ; 
+					#return(dA(h, A, parms))
+				} 
+			}
+			.Y		<- globalParms$Y.(FGY_INDEX)
+			.F		<- globalParms$F.(FGY_INDEX)
+			.G		<- globalParms$G.(FGY_INDEX)
+		} else
+		{
+			.Y		<- globalParms$Y.(t)
+			.F		<- globalParms$F.(t)
+			.G		<- globalParms$G.(t)
+			FGY_INDEX <- NA
+		}
+		list(.F=.F, .G=.G, .Y=.Y, FGY_INDEX=FGY_INDEX)
+	}
+	
+	#DEBUG
+	#with( get.fgy(0), {print(.Y); print(.F)  })
+	#browser()
+	
+	.dL.unstructuredModel <- function(h, L, parms, FGY_INDEX, ...){
+		# conditional on no coalescent
+		t <- parms$treeT - h
+		A <- parms$A
+		fgy <- get.fgy(h,t)
+		with( fgy, 
+		{
+			.F * (A / .Y)^2# *  (A-1) / max((.Y-1), 0.01)
+			#.F * (A / .Y) *  (A-1) / max((.Y-1), 0.01)
+		}) -> dL 
+		return( list(dL, FGY_INDEX=fgy$FGY_INDEX) )
+	}
+	.solve.L <- function(h0, h1, L,  A0 ) 
+	{
+		parameters 		<- list(treeT = tree$maxSampleTime, m = tree$m, A=A0)
+			tryCatch({
+						out0 <- ode(y=L, times=c(h0, h1), func=.dL.unstructuredModel, parms=parameters, FGY_INDEX=FGY_INDEX, method=globalParms$INTEGRATIONMETHOD ) 
+					}, error = function(e) browser() )
+			L1 <- unname( out0[nrow(out0),2] )
+			FGY_INDEX <- unname( out0[nrow(out0),3] )
+			return( list( L1, FGY_INDEX) )
+	}
+	
+	
+	
 	for (ih in 1:(length(eventTimes)-1)){
 		h0 <- eventTimes[ih]
 		h1 <- eventTimes[ih+1]
 		#get A0, process new samples, calculate lstate for new lines
 		extantLines <- .extant.at.height(h0, tree)
-		if (length(extantLines) > 1 ){
-			A0 <- colSums(tree$mstates[extantLines,])
-		} else if (length(extantLines)==1){ A0 <- tree$mstates[extantLines,] }
-		else{ browser() }
+		A0 <- length(extantLines)
 		
-		o <- .solve.L(h0, h1, L, tree, A0, globalParms=globalParms ) 
+		o <- .solve.L(h0, h1, L,  A0 ) 
 		L <- o[[1]]
+		FGY_INDEX <- o[[2]]
 		
 		newNodes <- which( tree$heights == h1)
 		newNodes <- newNodes[newNodes > length(tree$sampleTimes)]
-		.F <- F.(tree$maxSampleTime - h1)
-		.Y <- Y.(tree$maxSampleTime - h1)
-		S <- exp(-L)
-		
-		#TODO option to return -Inf in this situation: 
-		if (sum(.Y) < length(extantLines) ) S <- 0 
-		
-		for (alpha in newNodes){
-			X1 <- A0 / .Y
-			# option for finite size corrections:
-			if (FINITESIZECORRECTIONS){
-				X1 <- X1 * .Y / (max(.Y,1.01)-1)
+		if (length(newNodes) > 0)
+		{
+			fgy<- get.fgy(h1,  bdt$maxSampleTime - h1 )
+			.Y <- fgy$.Y
+			.F <- fgy$.F
+			FGY_INDEX <- fgy$FGY_INDEX
+			
+			S <- exp(-L)
+			
+			#TODO option to return -Inf in this situation: 
+			#tryCatch( { if (sum(.Y) < length(extantLines) ) {S <- 0; } }, error = function(e) browser() )
+			#print(paste(sum(.Y),length(extantLines)));
+			
+			for (alpha in newNodes){
+				X1 <- A0 / .Y
+				# option for finite size corrections:
+				#if (FINITESIZECORRECTIONS){
+				#	X1 <- X1 * .Y / (max(.Y,1.01)-1)
+				#}
+				
+				tree$lstates[alpha,] <- 1
+				tree$mstates[alpha,] <- 1
+				ratekl <- .F * (A0 / .Y)^2# *  (A0-1) / max((.Y-1), 0.01)
+				#ratekl <- .F * (A0 / .Y) *  (A0-1) / max((.Y-1), 0.01)
+				tree$coalescentRates[alpha] <- ratekl
+				tree$coalescentSurvivalProbability[alpha] <- S
 			}
 			
-			tree$lstates[alpha,] <- 1
-			tree$mstates[alpha,] <- 1
-			ratekl <- .F * X1^2
-			tree$coalescentRates[alpha] <- ratekl
-			tree$coalescentSurvivalProbability[alpha] <- S
+			L<-0
 		}
-		
-		if (length(newNodes) > 0) {L<-0}
 	}
-	
 	return( tree )
 }
 
@@ -406,7 +442,7 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 	Y. 					<<- function(t) { Y_DISCRETE[[FGY_INDEX]] }
 }
 
-.start.discrete.rates <- function(fgyResolution, maxHeight, globalParms) 
+.start.discrete.rates <- function(fgyResolution, maxSampleTime, globalParms) 
 { #version that does not generate global variables
 	F. <- globalParms$F.; G. <- globalParms$G.; Y. <- globalParms$Y. ; 
 	globalParms$FGY_RESOLUTION		<- fgyResolution
@@ -415,12 +451,12 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 	globalParms$G.bak 				<- G.
 	globalParms$Y.bak 				<- Y.
 	globalParms$USE_DISCRETE_FGY 	<- TRUE
-	globalParms$FGY_H_BOUNDARIES 	<- seq(0, maxHeight, length.out = fgyResolution) 
-	globalParms$FGY_H_BOUNDARIES 	<- globalParms$FGY_H_BOUNDARIES + globalParms$FGY_H_BOUNDARIES[2]/2
+	globalParms$FGY_H_BOUNDARIES 	<- seq(0, maxSampleTime, length.out = fgyResolution) 
+	globalParms$FGY_H_BOUNDARIES 	<- globalParms$FGY_H_BOUNDARIES + globalParms$FGY_H_BOUNDARIES[2]/2 #TODO is there a better way to do this offset? 
 	globalParms$FGY_INDEX 			<- 1 #update in desolve:ode
-	globalParms$F_DISCRETE 			<- lapply( globalParms$FGY_H_BOUNDARIES, function(h) { F.(maxHeight-h) })
-	globalParms$G_DISCRETE 			<- lapply( globalParms$FGY_H_BOUNDARIES, function(h) { G.(maxHeight-h) })
-	globalParms$Y_DISCRETE 			<- lapply( globalParms$FGY_H_BOUNDARIES, function(h) { Y.(maxHeight-h) })
+	globalParms$F_DISCRETE 			<- lapply( globalParms$FGY_H_BOUNDARIES, function(h) { F.(maxSampleTime-h) })
+	globalParms$G_DISCRETE 			<- lapply( globalParms$FGY_H_BOUNDARIES, function(h) { G.(maxSampleTime-h) })
+	globalParms$Y_DISCRETE 			<- lapply( globalParms$FGY_H_BOUNDARIES, function(h) { Y.(maxSampleTime-h) })
 	globalParms$F. 					<- function(FGY_INDEX) { globalParms$F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
 	globalParms$G. 					<- function(FGY_INDEX) { globalParms$G_DISCRETE[[FGY_INDEX]] }
 	globalParms$Y. 					<- function(FGY_INDEX) { globalParms$Y_DISCRETE[[FGY_INDEX]] }
@@ -478,7 +514,7 @@ coalescent.log.likelihood <- function(bdt, FGY=NULL, integrationMethod = 'rk4', 
 simulatedBinaryDatedTree <- function( x, ...) UseMethod("simulatedBinaryDatedTree")
 simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
 {
-	#require(ape)
+	require(ape)
 #~ simulates a coalescent tree, assumes F., G. and Y. are defined
 #~ same attributes are defined as binaryDatedTree
 	globalParms <- list( USE_DISCRETE_FGY = discretizeRates  )
@@ -494,7 +530,7 @@ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, FGY=NULL,
 	# NOTE when discretizing rates, this will neglect any changes in rates for t < 0
 	if (discretizeRates) 
 	{ 
-		globalParms <- .start.discrete.rates(fgyResolution, maxHeight = max(sampleTimes), globalParms = globalParms) 
+		globalParms <- .start.discrete.rates(fgyResolution, maxSampleTime = max(sampleTimes), globalParms = globalParms) 
 	}
 	#edge <- c()
 	#edge.length <- c()
@@ -734,7 +770,7 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates, 
 
 	if (discretizeRates) 
 	{ 
-		globalParms <- .start.discrete.rates(fgyResolution, maxHeight = max(sampleTimes), globalParms = globalParms) 
+		globalParms <- .start.discrete.rates(fgyResolution, maxSampleTime = max(sampleTimes), globalParms = globalParms) 
 	}
 	
 	
