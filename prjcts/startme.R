@@ -25,8 +25,10 @@
 #
 ###############################################################################
 #	set these as needed
-CODE.HOME	<<- "/Users/Oliver/workspace_sandbox/colgem"
-HOME		<<- "/Users/Oliver/workspace_sandbox/colgem/prjcts"
+#~ CODE.HOME	<<- "/Users/Oliver/workspace_sandbox/colgem"
+#~ HOME		<<- "/Users/Oliver/workspace_sandbox/colgem/prjcts"
+CODE.HOME	<<- "/home/eleven/work/svnwc2/rcolgem-rforge"
+HOME		<<- "/home/eleven/work/svnwc2/rcolgem-rforge/prjcts"
 #CODE.HOME	<<- "/work/or105/libs/colgem"
 #HOME		<<- "/work/or105/libs/colgem/prjcts"
 
@@ -50,10 +52,10 @@ EPS			<<- 1e-12
 require(rcolgem)
 ###############################################################################
 #	load all R functions and project source files. This avoids to rebuild the package all the time.
-function.list	<-c(	list.files(path= paste(CODE.HOME,"pkg/R",sep='/'), pattern = ".R$", all.files = FALSE, full.names = TRUE, recursive = FALSE),
-						list.files(path= paste(HOME,"misc",sep='/'), pattern = ".R$", all.files = FALSE, full.names = TRUE, recursive = FALSE)
-						)
-sapply(function.list,function(x) source(x,echo=FALSE,print.eval=FALSE, verbose=FALSE))
+#~ function.list	<-c(	list.files(path= paste(CODE.HOME,"pkg/R",sep='/'), pattern = ".R$", all.files = FALSE, full.names = TRUE, recursive = FALSE),
+#~ 						list.files(path= paste(HOME,"misc",sep='/'), pattern = ".R$", all.files = FALSE, full.names = TRUE, recursive = FALSE)
+#~ 						)
+#~ sapply(function.list,function(x) source(x,echo=FALSE,print.eval=FALSE, verbose=FALSE))
 ###############################################################################
 my.mkdir<-function(root,data.name)
 {
