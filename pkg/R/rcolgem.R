@@ -116,82 +116,6 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 ##########################
 #CALCULATE INTERNAL STATES
 
-.dPiAL <- function(h, y, parms, globalParms=NULL, ...){
-	if (!is.null(globalParms)) { F. <- globalParms$F.; G. <- globalParms$G.; Y. <- globalParms$Y. ; 
-	   USE_DISCRETE_FGY <- globalParms$USE_DISCRETE_FGY; 
-	   FGY_INDEX <- globalParms$FGY_INDEX
-	   FGY_RESOLUTION <- globalParms$FGY_RESOLUTION
-	   FGY_H_BOUNDARIES <- globalParms$FGY_H_BOUNDARIES
-	 } 
-	# conditional on no coalescent
-	p <- y[1:(parms$m-1)]
-	A <- y[(parms$m):(2*parms$m-1)]
-	L <- y[length(y)] #cumulative hazard
-	pp <- c(p, 1 - sum(p))
-	t <- parms$treeT - h
-	
-	if (USE_DISCRETE_FGY & !is.null(globalParms)){
-		if (FGY_INDEX < FGY_RESOLUTION &  h > FGY_H_BOUNDARIES[FGY_INDEX])  {globalParms$FGY_INDEX <- FGY_INDEX+1 ; return(.dPiAL(h, y, parms,globalParms=globalParms))}
-		if ( FGY_INDEX > 1 ) { if ( h< FGY_H_BOUNDARIES[FGY_INDEX-1]) { globalParms$FGY_INDEX <- FGY_INDEX-1 ; return(.dPiAL(h, y, parms,globalParms=globalParms))} }
-		.G <- G.(FGY_INDEX) 
-		.F <- F.(FGY_INDEX)
-		.Y <- Y.(FGY_INDEX) 
-	} else{
-		.G <- G.(t) 
-		.F <- F.(t)
-		.Y <- Y.(t) 
-	}
-	X1 <- pmax(A / .Y, 0); X1[is.infinite(X1)] <- A[is.infinite(X1)]
-	X2 <-  pmax( (.Y - A ) / .Y, 0); X2[is.infinite(X2)] <- A[is.infinite(X2)]
-	
-	FklXAk_Yk <- (.F * X1)
-	if(globalParms$FINITESIZECORRECTIONS){
-		diag(FklXAk_Yk) <- diag(FklXAk_Yk) * .Y / (pmax(.Y,1.01)-1)
-	}
-	dL <- sum( FklXAk_Yk %*% X1 )
-	
-	#TODO would be faster to solve m- 1 equations since sum(A) is conserved
-	dA <- c(+ as.vector(.G %*% X1) 
-					- as.vector(colSums(.G) )* X1
-					- as.vector( t(.F) %*% X2 ) * X1
-					+ as.vector( .F %*% X1) * X2)
-	
-	R <- t(.G) / .Y + t(.F * X2) / .Y
-	R <- R * (1- diag(length(.Y)))
-	R <- R  -rowSums(R) * diag(length(.Y))
-	R[is.nan(R)] <- 0
-	
-	dPi <-  (t(R) %*% pp)[1:(length(.Y)-1)]
-	return(list( c(dPi, dA, dL) ))
-}
-
-
-.solve.Pi.and.AL <- function(h0, h1, A0, L0, tree, globalParms=NULL)
-{
-	P0 				<- diag(tree$m)[,1:(tree$m-1)]
-	if (tree$m <=2) 
-		P0 			<- t(t(P0))
-	parameters 		<- list(treeT = tree$maxSampleTime, m = tree$m)
-	Pi1s 			<- c()
-	for (i in 1:tree$m)
-	{
-		y0 			<- c( P0[i,], A0, L0)
-		tryCatch({
-					out0 <- ode(y=y0, times=c(h0, h1), func=.dPiAL, parms=parameters, globalParms=globalParms, method=globalParms$INTEGRATIONMETHOD ) 
-				}, error = function(e) browser() )
-		Pi1 		<- abs(out0[nrow(out0),2:(1 + tree$m-1)])
-		if( sum(Pi1) > 1) 
-		{
-			Pi1 	<- Pi1 / sum(Pi1)
-		}
-		Pi1s 		<- rbind(Pi1s, Pi1 )
-	}
-	Pi1s 			<- cbind(Pi1s, 1 - rowSums(Pi1s))
-	A1 				<- out0[nrow(out0), (tree$m + 1):(2*tree$m-1 + 1)]
-	L1 				<- out0[nrow(out0), ncol(out0)]
-	return ( list(  unname(Pi1s), unname(A1), unname (L1) ) )
-}
-
 
 
 .calculate.internal.states.unstructuredModel <- function(tree, maxHeight=0, globalParms = NULL)
@@ -328,6 +252,89 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 	   FGY_H_BOUNDARIES <- globalParms$FGY_H_BOUNDARIES
 	   FINITESIZECORRECTIONS <- globalParms$FINITESIZECORRECTIONS
 	}
+	
+	FGY_INDEX <- 1
+	get.fgy <- function(h,t=NULL)
+	{
+		if (globalParms$USE_DISCRETE_FGY)
+		{
+			FGY_INDEX <- min( 1+floor( globalParms$FGY_RESOLUTION * h / globalParms$maxHeight ), globalParms$FGY_RESOLUTION)
+			.Y		<- globalParms$Y.(FGY_INDEX)
+			.F		<- globalParms$F.(FGY_INDEX)
+			.G		<- globalParms$G.(FGY_INDEX)
+			
+		} else
+		{
+			.Y		<- globalParms$Y.(t)
+			.F		<- globalParms$F.(t)
+			.G		<- globalParms$G.(t)
+		}
+		list(.F=.F, .G=.G, .Y=.Y,  FGY_INDEX=FGY_INDEX)
+	}
+	
+	.dPiAL <- function(h, y, parms, globalParms=NULL, ...){
+		# conditional on no coalescent
+		p <- y[1:(parms$m-1)]
+		A <- y[(parms$m):(2*parms$m-1)]
+		L <- y[length(y)] #cumulative hazard
+		pp <- c(p, 1 - sum(p))
+		t <- parms$treeT - h
+		
+		
+		with(get.fgy(h, t), {
+			X1 <- pmax(A / .Y, 0); X1[is.infinite(X1)] <- A[is.infinite(X1)]
+			X2 <-  pmax( (.Y - A ) / .Y, 0); X2[is.infinite(X2)] <- A[is.infinite(X2)]
+			
+			FklXAk_Yk <- (.F * X1)
+			if(globalParms$FINITESIZECORRECTIONS){
+				diag(FklXAk_Yk) <- diag(FklXAk_Yk) * .Y / (pmax(.Y,1.01)-1)
+			}
+			dL <- sum( FklXAk_Yk %*% X1 )
+			
+			#TODO would be faster to solve m- 1 equations since sum(A) is conserved
+			dA <- c( as.vector(.G %*% X1) 
+							- as.vector(colSums(.G) )* X1
+							- as.vector( t(.F) %*% X2 ) * X1
+							+ as.vector( .F %*% X1) * X2)
+			#
+			R <- t(.G) / .Y + t(.F * X2) / .Y
+			R <- R * (1- diag(length(.Y)))
+			R <- R  -rowSums(R) * diag(length(.Y))
+			R[is.nan(R)] <- 0
+			
+			dPi <-  (t(R) %*% pp)[1:(length(.Y)-1)]
+			return(list( c(dPi, dA, dL) ))
+		})
+	}
+	
+	.solve.Pi.and.AL <- function(h0, h1, A0, L0, tree, globalParms=NULL)
+	{
+		P0 				<- diag(tree$m)[,1:(tree$m-1)]
+		if (tree$m <=2) 
+			P0 			<- t(t(P0))
+		parameters 		<- list(treeT = tree$maxSampleTime, m = tree$m)
+		Pi1s 			<- c()
+		for (i in 1:tree$m)
+		{
+			y0 			<- c( P0[i,], A0, L0)
+			tryCatch({
+						out0 <- ode(y=y0, times=c(h0, h1), func=.dPiAL, parms=parameters, globalParms=globalParms, method=globalParms$INTEGRATIONMETHOD ) 
+					}, error = function(e) browser() )
+			Pi1 		<- abs(out0[nrow(out0),2:(1 + tree$m-1)])
+			if( sum(Pi1) > 1) 
+			{
+				Pi1 	<- Pi1 / sum(Pi1)
+			}
+			Pi1s 		<- rbind(Pi1s, Pi1 )
+		}
+		Pi1s 			<- cbind(Pi1s, 1 - rowSums(Pi1s))
+		A1 				<- out0[nrow(out0), (tree$m + 1):(2*tree$m-1 + 1)]
+		L1 				<- out0[nrow(out0), ncol(out0)]
+		return ( list(  unname(Pi1s), unname(A1), unname (L1) ) )
+	}
+	
+	
+	
 	eventTimes <- unique( sort(tree$heights) )
 	tree$maxHeight <- maxHeight
 	if (maxHeight) { 
@@ -359,87 +366,66 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 		#if applicable: update ustate & calculate lstate of new line 
 		newNodes <- which( tree$heights == h1)
 		newNodes <- newNodes[newNodes > length(tree$sampleTimes)]
-		if (USE_DISCRETE_FGY){
-			.F <- F.(FGY_INDEX)
-			.Y <- Y.(FGY_INDEX)
-		} else{
-			.F <- F.(tree$maxSampleTime - h1)
-			.Y <- Y.(tree$maxSampleTime - h1)
-		}
-		S <- exp(-L)
 		
-		#TODO option to return -Inf in this situation: 
-		if (sum(.Y) < length(extantLines) ) S <- 0 
-		
-		for (alpha in newNodes){
-			u <- tree$daughters[alpha,1]
-			v <- tree$daughters[alpha,2]
-			tree$ustates[u,] <- tree$mstate[u,]
-			tree$ustates[v,] <- tree$mstate[v,]
+		fgy <- get.fgy(h1, globalParms$maxHeight-h1)
+		with(fgy, 
+		{
+			S <- exp(-L)
+			#TODO option to return -Inf in this situation: 
+			if (sum(.Y) < length(extantLines) ) S <- 0 
 			
-			FklXpuk_Yk <- (.F * tree$ustates[u,]/.Y)
-			FklXpvk_Yk <- (.F * tree$ustates[v,]/.Y)
-			# option for finite size corrections:
-			if (FINITESIZECORRECTIONS){
-				diag(FklXpuk_Yk) <- diag(FklXpuk_Yk) * .Y / (pmax(.Y,1.01)-1)
-				diag(FklXpvk_Yk) <- diag(FklXpvk_Yk) * .Y / (pmax(.Y,1.01)-1)
-				#TODO need additional finite size correction: update pvl conditional on state(u)==k
-			}
-			FklXpuk_Yk[is.nan(FklXpuk_Yk)] <- 0
-			FklXpvk_Yk[is.nan(FklXpvk_Yk)] <- 0
-			vk_Yk <- pmin(pmax(tree$ustates[v,]/.Y, 0),1); vk_Yk[is.nan(vk_Yk)] <- 0
-			uk_Yk <- pmin(pmax(tree$ustates[u,]/.Y, 0),1); uk_Yk[is.nan(uk_Yk)] <- 0
-			ratekl <- FklXpuk_Yk %*% vk_Yk + FklXpvk_Yk %*% uk_Yk
-			
-			tree$lstates[alpha,] <- ratekl / sum(ratekl)
-			tree$mstates[alpha,] <- ratekl / sum(ratekl)
-			tree$coalescentRates[alpha] <- sum(ratekl) 
-			tree$coalescentSurvivalProbability[alpha] <- S
-			
-			# finite size corrections for lines not involved in coalescent
-			if (FINITESIZECORRECTIONS)
-			{
-				p_a <- tree$lstates[alpha,]
-				for (i in extantLines){
-					if (i!=u & i!=v){
-						p_i <- tree$mstates[i,]
-						fterm <- p_i * p_a * pmax(.Y-1,0)/pmax(.Y-p_a, 1e-9)
-						smat <-  t( matrix( rep( p_a * .Y/pmax(.Y-p_i,1e-9), tree$m), nrow=tree$m) )
-						diag(smat) <- 0
-						sterm <- p_i * rowSums(smat)
-						tree$mstates[i,] <- fterm + sterm
-						if (sum(is.na(fterm+sterm)) > 0) browser()
-						if (sum(tree$mstates[i,]) <= 0) { tree$mstates[i,] <- .Y / sum(.Y) } 
-						else{ tree$mstates[i,] <- tree$mstates[i,] / sum(tree$mstates[i,]) }
+			for (alpha in newNodes){
+				u <- tree$daughters[alpha,1]
+				v <- tree$daughters[alpha,2]
+				tree$ustates[u,] <- tree$mstate[u,]
+				tree$ustates[v,] <- tree$mstate[v,]
+				
+				FklXpuk_Yk <- (.F * tree$ustates[u,]/.Y)
+				FklXpvk_Yk <- (.F * tree$ustates[v,]/.Y)
+				# option for finite size corrections:
+				if (FINITESIZECORRECTIONS){
+					diag(FklXpuk_Yk) <- diag(FklXpuk_Yk) * .Y / (pmax(.Y,1.01)-1)
+					diag(FklXpvk_Yk) <- diag(FklXpvk_Yk) * .Y / (pmax(.Y,1.01)-1)
+					#TODO need additional finite size correction: update pvl conditional on state(u)==k
+				}
+				FklXpuk_Yk[is.nan(FklXpuk_Yk)] <- 0
+				FklXpvk_Yk[is.nan(FklXpvk_Yk)] <- 0
+				vk_Yk <- pmin(pmax(tree$ustates[v,]/.Y, 0),1); vk_Yk[is.nan(vk_Yk)] <- 0
+				uk_Yk <- pmin(pmax(tree$ustates[u,]/.Y, 0),1); uk_Yk[is.nan(uk_Yk)] <- 0
+				ratekl <- FklXpuk_Yk %*% vk_Yk + FklXpvk_Yk %*% uk_Yk
+				
+				tree$lstates[alpha,] <- ratekl / sum(ratekl)
+				tree$mstates[alpha,] <- ratekl / sum(ratekl)
+				tree$coalescentRates[alpha] <- sum(ratekl) 
+				tree$coalescentSurvivalProbability[alpha] <- S
+				
+				#print( paste( tree$coalescentRates[alpha], S) )
+				# finite size corrections for lines not involved in coalescent
+				if (FINITESIZECORRECTIONS)
+				{
+					p_a <- tree$lstates[alpha,]
+					for (i in extantLines){
+						if (i!=u & i!=v){
+							p_i <- tree$mstates[i,]
+							fterm <- p_i * p_a * pmax(.Y-1,0)/pmax(.Y-p_a, 1e-9)
+							smat <-  t( matrix( rep( p_a * .Y/pmax(.Y-p_i,1e-9), tree$m), nrow=tree$m) )
+							diag(smat) <- 0
+							sterm <- p_i * rowSums(smat)
+							tree$mstates[i,] <- fterm + sterm
+							if (sum(is.na(fterm+sterm)) > 0) browser()
+							if (sum(tree$mstates[i,]) <= 0) { tree$mstates[i,] <- .Y / sum(.Y) } 
+							else{ tree$mstates[i,] <- tree$mstates[i,] / sum(tree$mstates[i,]) }
+						}
 					}
 				}
 			}
-		}
-		
+			tree
+		}) -> tree
 		if (length(newNodes) > 0) {L<-0}
 	}
 	return(tree)
 }
 #############################
-.start.discrete.rates.0 <- function(fgyResolution, maxHeight) 
-{ #deprecated
-	FGY_RESOLUTION		<<- fgyResolution
-	#~ speed up calculation of FGY by discretizing & pre-caching
-	F.bak 				<<- F.
-	G.bak 				<<- G.
-	Y.bak 				<<- Y.
-	USE_DISCRETE_FGY 	<<- TRUE
-	FGY_H_BOUNDARIES 	<<- seq(0, maxHeight, length.out = fgyResolution) 
-	FGY_H_BOUNDARIES 	<<- FGY_H_BOUNDARIES + FGY_H_BOUNDARIES[2]/2
-	FGY_INDEX 			<<- 1 #update in desolve:ode
-	F_DISCRETE 			<<- lapply( FGY_H_BOUNDARIES, function(h) { F.(maxHeight-h) })
-	G_DISCRETE 			<<- lapply( FGY_H_BOUNDARIES, function(h) { G.(maxHeight-h) })
-	Y_DISCRETE 			<<- lapply( FGY_H_BOUNDARIES, function(h) { Y.(maxHeight-h) })
-	F. 					<<- function(t) { F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
-	G. 					<<- function(t) { G_DISCRETE[[FGY_INDEX]] }
-	Y. 					<<- function(t) { Y_DISCRETE[[FGY_INDEX]] }
-}
-
 .start.discrete.rates <- function(fgyResolution, maxSampleTime, globalParms) 
 { #version that does not generate global variables
 	F. <- globalParms$F.; G. <- globalParms$G.; Y. <- globalParms$Y. ; 
@@ -449,6 +435,7 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 	globalParms$G.bak 				<- G.
 	globalParms$Y.bak 				<- Y.
 	globalParms$USE_DISCRETE_FGY 	<- TRUE
+	globalParms$maxHeight			<- maxSampleTime #NOTE: This does not allow FGY defined for t<0
 	globalParms$FGY_H_BOUNDARIES 	<- seq(0, maxSampleTime, length.out = fgyResolution) 
 	globalParms$FGY_H_BOUNDARIES 	<- globalParms$FGY_H_BOUNDARIES + globalParms$FGY_H_BOUNDARIES[2]/2 #TODO is there a better way to do this offset? 
 	globalParms$FGY_INDEX 			<- 1 #update in desolve:ode
@@ -460,14 +447,8 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 	globalParms$Y. 					<- function(FGY_INDEX) { globalParms$Y_DISCRETE[[FGY_INDEX]] }
 	globalParms
 }
+
 #############################
-.end.discrete.rates.0 <- function()
-{ #deprecated
-	#reset fgy functions
-	F. <<- F.bak
-	G. <<- G.bak
-	Y. <<- Y.bak
-}
 .end.discrete.rates <- function(globalParms){
 	#reset fgy functions
 	# does not use global variables
@@ -504,6 +485,7 @@ coalescent.log.likelihood <- function(bdt, FGY=NULL, integrationMethod = 'rk4', 
 	if (discretizeRates) { globalParms <- .end.discrete.rates(globalParms)}
 	#print(paste(date(), 'finish likelihood', ll))
 	return(ll)
+#~ 	list(ll, log(tree$coalescentRates[i])  ,  log(tree$coalescentSurvivalProbability[i]) ) 
 }
 
 
