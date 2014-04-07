@@ -1348,9 +1348,7 @@ cg.sde.fulllkl<- function()
 	lkl.fgyResolution			<- 100
 	lkl.maxHeight				<- 0	
 	#	parameter template
-	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, 
-								S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, 
-								times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
+	parms.template 	<- list(	m=3, gamma0 = 1, gamma1 = 1/7, gamma2 = 1/2, mu = 1/30, b=.036, beta0 = 1+1/30, beta1=(1+1/30)/10, beta2=(1+1/30)/10, S_0=S0, I0_0=1, I1_0=1, I2_0=1, alpha = 4, times=seq(0, 50, by=.1), sampleTime=50, phi=phi)	
 	#
 	tmp					<-  cg.sde.define()
 	F.skeleton			<<- tmp$F.skeleton
