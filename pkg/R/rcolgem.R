@@ -2,7 +2,7 @@
 #' @import ape
 #' @import deSolve
 
-#~ TODO finite size correction for pair (i,j) of lineages at internal node (see written notes): 
+#~ DONE (not implemented) finite size correction for pair (i,j) of lineages at internal node (see written notes): 
 #~	if i transmits and is type k: 
 #~ 		pjk -> pjk * (Yk-1)/Yk
 #~ 		pjl (l\neq k) -> pjl * Yk/(Yk-pjk)
@@ -14,11 +14,7 @@
 #~ 	check sampleTimes compatible with edge.length; FGY functions defined over length of tree;
 #~ TODO adapt coalescent simulator to heterochronous sample
 #~ TODO add option to switch to semi-structured coalescent if difference in line states below threshold
-#~ 			TODO how to quantify difference in line state vectors
-#~ 				max or mean euclidean distance to centroid of points on 1-simplex? 
-#~ 			solve deterministic Ak to max time, likelihood based on total rather than pairwise coalescent rate
 #~ TODO test heterochronous samples
-#~ TODO a rare bug : Error in if (sum(tree$mstates[i, ]) <= 0) { : missing value where TRUE/FALSE needed
 
 
 
@@ -27,7 +23,7 @@ SIMULATIONTIMERESOLUTION<- 1e+04
 
 #PRELIMINARIES 
 .calculate.heights <- function(phylo){
-	phylo$maxSampleTime  = phylo$maxSampleTime <- max(phylo$sampleTimes)
+	phylo$maxSampleTime   <- max(phylo$sampleTimes)
 	heights <- rep(0, (phylo$Nnode + length(phylo$tip.label)) )
 	heights[1:length(phylo$sampleTimes)] <- phylo$maxSampleTime - phylo$sampleTimes
 	curgen <- 1:length(phylo$sampleTimes)
@@ -44,6 +40,7 @@ SIMULATIONTIMERESOLUTION<- 1e+04
 		curgen <- unique(nextgen)
 	}
 	phylo$heights <- heights
+	phylo$maxHeight <- max(heights)
 	return(phylo)
 }
 
@@ -91,9 +88,9 @@ SIMULATIONTIMERESOLUTION<- 1e+04
 #' Create binary dated tree
 #' binaryDatedTree class, includes heights for each node and other helper variables
 #' @export
-binaryDatedTree <- function( x, ...) UseMethod("binaryDatedTree")
-
-binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
+#~ binaryDatedTree <- function( x, ...) UseMethod("binaryDatedTree")
+#~ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
+binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 	if (phylo$Nnode != length(phylo$tip.label) - 1 ) { stop('Object class phylo is not a binary tree.') }
 	phylo$sampleTimes <- sampleTimes
 	phylo$sampleStates <- sampleStates
@@ -115,18 +112,14 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 
 ##########################
 #CALCULATE INTERNAL STATES
-
-
-
-.calculate.internal.states.unstructuredModel <- function(tree, maxHeight=0, globalParms = NULL)
+.calculate.internal.states.unstructuredModel <- function(tree, maxHeight=FALSE, globalParms = NULL)
 {
 	if (!is.null(globalParms)){
 		F. <- globalParms$F.; G. <- globalParms$G.; Y. <- globalParms$Y. ; 
-	   USE_DISCRETE_FGY <- globalParms$USE_DISCRETE_FGY; 
-	   FGY_INDEX <- globalParms$FGY_INDEX
+	   USE_DISCRETE_FGY <- TRUE
 	   FGY_RESOLUTION <- globalParms$FGY_RESOLUTION
 	   FGY_H_BOUNDARIES <- globalParms$FGY_H_BOUNDARIES
-	   FINITESIZECORRECTIONS <- globalParms$FINITESIZECORRECTIONS
+	   FINITESIZECORRECTIONS <- TRUE
 	}
 	eventTimes <- unique( sort(tree$heights) )
 	tree$maxHeight <- maxHeight
@@ -244,133 +237,86 @@ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
 }
 
 
-.calculate.internal.states <- function(tree, maxHeight=0, globalParms=NULL){
-print('testing version')
-	if (!is.null(globalParms)){
-		F. <- globalParms$F.; G. <- globalParms$G.; Y. <- globalParms$Y. ; 
-	   USE_DISCRETE_FGY <- globalParms$USE_DISCRETE_FGY; 
-	   FGY_INDEX <- globalParms$FGY_INDEX
-	   FGY_RESOLUTION <- globalParms$FGY_RESOLUTION
-	   FGY_H_BOUNDARIES <- globalParms$FGY_H_BOUNDARIES
-	}
+.calculate.internal.states <- function(tree, fgyParms,  censorAtHeight=FALSE, forgiveAgtY = FALSE,   INTEGRATIONMETHOD = 'rk4'){
+	F. <- fgyParms$F.; G. <- fgyParms$G.; Y. <- fgyParms$Y. ; 
+	FGY_RESOLUTION <- fgyParms$FGY_RESOLUTION
 	
-	FGY_INDEX <- 1
-	get.fgy <- function(h,t=NULL)
+	get.fgy <- function(h)
 	{
-		if (globalParms$USE_DISCRETE_FGY)
-		{
-			FGY_INDEX <- min( 1+floor( globalParms$FGY_RESOLUTION * h / globalParms$maxHeight ), globalParms$FGY_RESOLUTION)
-			.Y		<- globalParms$Y.(FGY_INDEX)
-			.F		<- globalParms$F.(FGY_INDEX)
-			.G		<- globalParms$G.(FGY_INDEX)
-			
-		} else
-		{
-			.Y		<- globalParms$Y.(t)
-			.F		<- globalParms$F.(t)
-			.G		<- globalParms$G.(t)
-		}
-		list(.F=.F, .G=.G, .Y=.Y,  FGY_INDEX=FGY_INDEX)
+			FGY_INDEX <- min( 1+floor( FGY_RESOLUTION * h / tree$maxHeight ), FGY_RESOLUTION)
+			.Y		<- fgyParms$Y.(FGY_INDEX)
+			.F		<- fgyParms$F.(FGY_INDEX)
+			.G		<- fgyParms$G.(FGY_INDEX)
+		list(.F=.F, .G=.G, .Y=.Y)
 	}
 	
+	# construct forcing timeseries for ode's
+	times <- fgyParms$FGY_H_BOUNDARIES
+	fgymat <- t( sapply( 1:FGY_RESOLUTION, function(i) 
+	  c( as.vector(fgyParms$F_DISCRETE[[i]]) , 
+	    as.vector( fgyParms$G_DISCRETE[[i]] ), 
+	    fgyParms$Y_DISCRETE[[i]]) ) 
+	)
 	
-	.dQ.L6 <- function(h, y, parms, globalParms=NULL, ...){
-		# see notes march 25
-		Q <- pmax(matrix(y[1:parms$m^2], nrow=parms$m, ncol=parms$m), 0) #
-		.omc <- colSums( Q ) # 'one minus c'
-		P <- t( t(Q) / .omc ) #col wise
-		L <- y[length(y)] #cumulative hazard
-		t <- parms$treeT - h
-		
-		A <- as.vector( P %*% parms$A0 )
-		
-		with(get.fgy(h, t), {
-			X1 <- pmax(A / .Y, 0); X1[is.infinite(X1)] <- 1 #A[is.infinite(X1)]
-			X2 <- pmax( ((A-1)/(.Y-1)), 0);  X2[is.infinite(X2)] <- 1
-						
-			F1 <- .F; diag(F1) <- 0
-			F2 <- diag( diag(.F) )
-			dL <- X1 %*% F1 %*% X1 
-			    + X1 %*% F2 %*% X2
-			
-			# non-coalescent transitions:
-			O <- t( .G  + .F ) / .Y 
-			diag(O) <- 0
-			diag(O) <- -rowSums(O)
-			
-			# loss due to coalescent
-			C <- diag( colSums( X1*(.F + t(.F)) ) / .Y )  #transmissions by index resulting in coalescent
-			
-			# final
-			R <- O-C
-			R[is.nan(R)] <- 0
-			
-			dQ <- t(R) %*% P 
-			dQ[is.nan(dQ)] <- 0
-			return(list( c(dQ, as.vector( dL) ) ))
-		})
-	}
-	
-	.solve.P.L3 <- function(h0, h1, A0, L0, tree, globalParms=NULL)
-	{
+	.solve.Q.A.L <- function(h0, h1, A0, L0)
+	{ # uses C implementation
 		Q0 <- diag(tree$m)
-		parameters 		<- list(treeT = tree$maxSampleTime, m = tree$m, A0 = A0)
-		y0 <- c( as.vector( Q0), L0 ) #TODO
-		o <- ode(y=y0, times=c(h0, h1), func=.dQ.L6, parms=parameters, globalParms=globalParms, method=globalParms$INTEGRATIONMETHOD ) 
+		parameters 	<- c(tree$m, tree$maxHeight, FGY_RESOLUTION, sum(A0), as.vector(fgymat))
+		y0 <- c( as.vector( Q0), A0,  L0 ) #
+		#o <- ode(y=y0, c(h0,h1), func = "dQAL", parms = parameters, dllname = "dQAL-6.3", initfunc = "initfunc", method=INTEGRATIONMETHOD )
+		o <- ode(y=y0, c(h0,h1), func = "dQAL", parms = parameters, dllname = "rcolgem", initfunc = "initfunc", method=INTEGRATIONMETHOD )
 		Q1 		<- t( matrix(  abs(o[nrow(o),2:(1 + tree$m^2)]) , nrow=tree$m) ) #NOTE the transpose
-		P1 <- Q1 / rowSums(Q1) # NOTE renormalization
-		if (sum(is.nan(P1))>0) browser()
-		A1 <- t(P1) %*% A0
+		A1 <- o[nrow(o), (1 + tree$m^2 + 1):(1 + tree$m^2 +  tree$m)]
 		L1 <- o[nrow(o), ncol(o)]
-		return ( list(  unname(P1), unname(A1), unname (L1) ) )
+		return ( list(  unname(Q1), unname(A1),  unname(L1) ) ) #
 	}
-	
-	
 	
 	eventTimes <- unique( sort(tree$heights) )
-	tree$maxHeight <- maxHeight
-	if (maxHeight) { 
-		eventTimes <- eventTimes[eventTimes<=maxHeight]}
-	if (max(eventTimes) > tree$maxSampleTime)  warning('Node heights of tree extend to negative time axis. Results may not be accurate. Try rescaling time axis and sample times. ')
+	if (censorAtHeight) { 
+		eventTimes <- eventTimes[eventTimes<=censorAtHeight]}
 	S <- 1
 	L <- 0
-	hAs <- c() #debug
+	
+	#debugging symbols
+	tree$A <- c() #h->A
+	tree$lnS <- c()
+	tree$lnr <- c()
+	tree$ih <- c()
+	
+	
 	for (ih in 1:(length(eventTimes)-1)){
 		h0 <- eventTimes[ih]
 		h1 <- eventTimes[ih+1]
-		#get A0, process new samples, calculate lstate for new lines
+		fgy <- get.fgy(h1)
+		#get A0, process new samples, calculate state of new lines
 		extantLines <- .extant.at.height(h0, tree)
 		if (length(extantLines) > 1 ){
 			A0 <- colSums(tree$mstates[extantLines,])
 		} else if (length(extantLines)==1){ A0 <- tree$mstates[extantLines,] }
-		else{ browser() }
-		hAs <- rbind( hAs, c(h0, A0)) #debug
 		
-		out <- .solve.P.L3(h0, h1, A0, L, tree, globalParms=globalParms)
-		P <- out[[1]]
+		out <- .solve.Q.A.L(h0, h1, A0,  L)
+		Q <- out[[1]]
 		A <- out[[2]]
 		L <- out[[3]]
 		
-		#update midstates
-		tree$mstates[extantLines,] <- t( t(P) %*% t(tree$mstates[extantLines,])  )
-		tree$mstates[extantLines,] <- tree$mstates[extantLines,] / rowSums(tree$mstates[extantLines,])
+		#update mstates
+		tree$mstates[extantLines,] <- t( t(Q) %*% t(tree$mstates[extantLines,])  )
+		tree$mstates[extantLines,] <- abs(tree$mstates[extantLines,]) / rowSums(abs(tree$mstates[extantLines,]))
+		
+		#recalculate A
+		A <- colSums(tree$mstates[extantLines,])
 		
 		#if applicable: update ustate & calculate lstate of new line 
 		newNodes <- which( tree$heights == h1)
-		newNodes <- newNodes[newNodes > length(tree$sampleTimes)]
+		newNodes <- newNodes[newNodes > length(tree$sampleTimes)] # <- internal nodes
 		
-		fgy <- get.fgy(h1, globalParms$maxHeight-h1)
 		with(fgy, 
 		{
-			S <- exp(-L)
-			
-			#TODO option to return -Inf in this situation: 
-			if (sum(.Y) < length(extantLines) ) S <- 0 
+			if ( (sum(.Y) < length(extantLines)) & (!forgiveAgtY) ) L <- Inf
 			
 			for (alpha in newNodes){
 				u <- tree$daughters[alpha,1]
 				v <- tree$daughters[alpha,2]
-				
 				{
 					tree$ustates[u,] <- tree$mstate[u,]
 					tree$ustates[v,] <- tree$mstate[v,]
@@ -382,30 +328,30 @@ print('testing version')
 					vk_Yk <- pmin(pmax(tree$ustates[v,]/.Y, 0),1); vk_Yk[is.nan(vk_Yk)] <- 0
 					uk_Yk <- pmin(pmax(tree$ustates[u,]/.Y, 0),1); uk_Yk[is.nan(uk_Yk)] <- 0
 					ratekl <- FklXpuk_Yk %*% vk_Yk + FklXpvk_Yk %*% uk_Yk
-					
-					rate_uv <- uk_Yk %*% .F %*% vk_Yk
-					rate_vu <- vk_Yk %*% .F %*% uk_Yk
-					putrans <- rate_uv / (rate_uv + rate_vu)
-					if (is.nan(putrans)) putrans <- .5
-					pvtrans <- 1 - putrans
 				}
+				if (sum(is.na(ratekl)) > 0) ratekl <- rep(1/tree$m, tree$m) * 1e-6
+				if (sum(ratekl)==0) {print('ratekl = 0'); ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 				
-				if (sum(ratekl)==0) ratekl <- rep(1/tree$m, tree$m) * 1e-6 # so that line states are not nan
-				
-				# ancestor state at new node
+				# definitions of alpha state
+				{ #
 					tree$lstates[alpha,] <- ratekl / sum(ratekl)
 					tree$mstates[alpha,] <- ratekl / sum(ratekl)
-				# for likelihood:
+				}
 				tree$coalescentRates[alpha] <- sum(ratekl) 
-				tree$coalescentSurvivalProbability[alpha] <- S
+				tree$coalescentSurvivalProbability[alpha] <- exp(-L)
 				tree$logCoalescentSurvivalProbability[alpha] <- -L
 				
+				# debug
+				tree$A <- rbind( tree$A, A)
+				tree$lnS <- c( tree$lnS, -L )
+				tree$lnr <- c( tree$lnr, log(sum(ratekl)) )
+				tree$ih <- c( tree$ih, h1)
+				
+				#if (is.infinite(L)) browser()
+				#if (is.nan(L)) browser()
 				
 				# finite size corrections for lines not involved in coalescent
-				# can be important when sample fraction is large and/or population size is small
-				{ 
-				#highly vectorized version- should be fast
-				# modification from Genetics '12: uses A instead of Y
+				{ #
 					p_a     <- tree$lstates[alpha,]
 					p_i_mat <- tree$mstates[extantLines,]
 					A_mat   <- t( matrix( A, nrow=m, ncol=length(extantLines) )  )
@@ -413,7 +359,7 @@ print('testing version')
 					rho_mat <- A_mat /  (A_mat - p_i_mat)
 					rterms  <- p_a_mat / (A_mat - p_i_mat)
 					lterms  <- rho_mat %*% p_a
-					lterms <- matrix(lterms, nrow=length(lterms), ncol=m) #maybe this is faster than sapply
+					lterms <- matrix(lterms, nrow=length(lterms), ncol=m) #
 					new_p_i <- p_i_mat * (lterms - rterms)
 					new_p_i <- new_p_i / rowSums(new_p_i)
 					tree$mstates[extantLines,] <- new_p_i
@@ -421,11 +367,13 @@ print('testing version')
 			}
 			tree
 		}) -> tree
-		if (length(newNodes) > 0) {L<-0}
+		# if coalescent occurred, reset cumulative hazard function
+		if (length(newNodes) > 0) {
+		  L <- 0 }
 	}
-#~ 	return(tree)
-return( list(tree, hAs)) #debug
+	return(tree)
 } 
+
 
 
 .start.discrete.rates <- function(fgyResolution, maxSampleTime, globalParms) 
@@ -460,36 +408,45 @@ return( list(tree, hAs)) #debug
 	globalParms
 }
 #############################
-
+.gen.discrete.fgy.parameters <- function(FGY, fgyResolution, maxSampleTime, maxHeight ) 
+{ #~ speed up calculation of FGY by discretizing & pre-caching
+	parms <- list()
+	F. <- FGY$F.; G. <- FGY$G.; Y. <- FGY$Y. ; 
+	parms$FGY_RESOLUTION		<- fgyResolution
+	parms$maxHeight				<- maxHeight #
+	parms$FGY_H_BOUNDARIES 		<- seq(0, maxHeight, length.out = fgyResolution) #TODO
+	parms$F_DISCRETE 			<- lapply( parms$FGY_H_BOUNDARIES, function(h) { F.(maxSampleTime-h) })
+	parms$G_DISCRETE 			<- lapply( parms$FGY_H_BOUNDARIES, function(h) { G.(maxSampleTime-h) })
+	parms$Y_DISCRETE 			<- lapply( parms$FGY_H_BOUNDARIES, function(h) { Y.(maxSampleTime-h) })
+	parms$F. 					<- function(FGY_INDEX) { parms$F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
+	parms$G. 					<- function(FGY_INDEX) { parms$G_DISCRETE[[FGY_INDEX]] }
+	parms$Y. 					<- function(FGY_INDEX) { parms$Y_DISCRETE[[FGY_INDEX]] }
+	parms
+}
+#############################
 # CALCULATE LIKELIHOOD
 #' @export
-coalescent.log.likelihood <- function(bdt, FGY=NULL, integrationMethod = 'rk4',  maxHeight=0, discretizeRates=TRUE, fgyResolution = 200)
+coalescent.log.likelihood <- function(bdt, FGY, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=FALSE, fgyResolution = 2000)
 {
-	#print(paste(date(), 'start likelihood'))
-	globalParms <- list( USE_DISCRETE_FGY = discretizeRates , INTEGRATIONMETHOD=integrationMethod )
-	if (!is.null(FGY)) { globalParms <- modifyList( globalParms, FGY) }
-	else {globalParms <- modifyList( globalParms, list( F. = F., G. = G., Y. = Y. ))} 
-	
-	if (discretizeRates) { globalParms <-  .start.discrete.rates(fgyResolution, maxSampleTime = max(bdt$sampleTimes), globalParms ) }
-	
-	# bdt : binaryDatedTree instance
+# bdt : binaryDatedTree instance
+	fgyParms <- .gen.discrete.fgy.parameters(FGY, fgyResolution, bdt$maxSampleTime, bdt$maxHeight ) 
 	if (ncol( bdt$sampleStates ) ==1) 
-	  tree <- .calculate.internal.states.unstructuredModel(bdt, maxHeight=maxHeight, globalParms = globalParms)
+	  tree <- .calculate.internal.states.unstructuredModel(bdt, maxHeight=censorAtHeight, globalParms = fgyParms)
 	else
-	  tree_hAs <- .calculate.internal.states(bdt, maxHeight=maxHeight, globalParms = globalParms)
-	  tree <- tree_hAs[[1]]
+	  tree <- .calculate.internal.states(bdt, fgyParms,  censorAtHeight=censorAtHeight, forgiveAgtY = forgiveAgtY,   INTEGRATIONMETHOD = integrationMethod)
+	
 	i<- (length(tree$sampleTimes)+1):(tree$Nnode + length(tree$tip.label))
-	if (maxHeight) { 
+	if (censorAtHeight) { 
 		internalHeights <- tree$heights[(length(tree$tip.label)+1):length(tree$heights)]
-		i <- i[internalHeights <= maxHeight] }
+		i <- i[internalHeights <= censorAtHeight] 
+	}
 	ll <- sum( log(tree$coalescentRates[i]) ) + sum( tree$logCoalescentSurvivalProbability[i] )#sum( log(tree$coalescentSurvivalProbability[i]) ) 
-	if (maxHeight) { ll<- tree$Nnode *  ll/length(i)}
+	if (censorAtHeight) { ll<- tree$Nnode *  ll/length(i)}
 	if (is.nan(ll) | is.na(ll) ) ll <- -Inf
-	if (discretizeRates) { globalParms <- .end.discrete.rates(globalParms)}
-	#print(paste(date(), 'finish likelihood', ll))
-	return (ll)
-#~ 	return(list(ll, tree_hAs[[2]], tree$heights[i], log(tree$coalescentRates[i]), log(tree$coalescentSurvivalProbability[i]), tree$logCoalescentSurvivalProbability[i] )) #debug
+	#return(list( ll, tree)) #for debugging
+	ll
 }
+
 
 #' Simulate binary dated tree
 #' @export
