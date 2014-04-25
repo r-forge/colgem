@@ -33,8 +33,12 @@ SIMULATIONTIMERESOLUTION<- 1e+04
 		for (i in icurgenedges){
 			u<- phylo$edge[i,1]
 			v<- phylo$edge[i,2]
+			# inspect tree
+			if ( heights[u] > 0 & abs(heights[u] - (phylo$edge.length[i] + heights[v]))/heights[u] > 1e-2 )
+			{ #browser()
+			  stop( 'Tree is poorly formed. Branch lengths incompatible with sample times.')
+			  }
 			heights[u] <- phylo$edge.length[i] + heights[v]
-			#if (is.na(heights[u])) browser()
 			nextgen <- c(nextgen, u)
 		}
 		curgen <- unique(nextgen)
@@ -330,6 +334,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 					vk_Yk <- pmin(pmax(tree$ustates[v,]/.Y, 0),1); vk_Yk[is.nan(vk_Yk)] <- 0
 					uk_Yk <- pmin(pmax(tree$ustates[u,]/.Y, 0),1); uk_Yk[is.nan(uk_Yk)] <- 0
 					ratekl <- FklXpuk_Yk %*% vk_Yk + FklXpvk_Yk %*% uk_Yk
+					if (sum(ratekl) < 0) browser()
 				}
 				
 				
