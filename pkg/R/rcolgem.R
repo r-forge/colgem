@@ -312,7 +312,9 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 		
 		with(fgy, 
 		{
+			#tryCatch( {
 			if ( (sum(.Y) < length(extantLines)) & (!forgiveAgtY) ) L <- Inf
+			#}, error = function(e) browser() )
 			
 			for (alpha in newNodes){
 				u <- tree$daughters[alpha,1]
@@ -329,17 +331,24 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 					uk_Yk <- pmin(pmax(tree$ustates[u,]/.Y, 0),1); uk_Yk[is.nan(uk_Yk)] <- 0
 					ratekl <- FklXpuk_Yk %*% vk_Yk + FklXpvk_Yk %*% uk_Yk
 				}
-				if (sum(is.na(ratekl)) > 0) ratekl <- rep(1/tree$m, tree$m) * 1e-6
-				if (sum(ratekl)==0) {print('ratekl = 0'); ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 				
+				
+				tree$coalescentRates[alpha] <- sum(ratekl) 
+				if (is.nan(L))
+				{
+					L <- (h1 - h0) * sum(ratekl) 
+				}
+				tree$coalescentSurvivalProbability[alpha] <- exp(-L)
+				tree$logCoalescentSurvivalProbability[alpha] <- -L
+				
+				
+				
+				if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 				# definitions of alpha state
 				{ #
 					tree$lstates[alpha,] <- ratekl / sum(ratekl)
 					tree$mstates[alpha,] <- ratekl / sum(ratekl)
 				}
-				tree$coalescentRates[alpha] <- sum(ratekl) 
-				tree$coalescentSurvivalProbability[alpha] <- exp(-L)
-				tree$logCoalescentSurvivalProbability[alpha] <- -L
 				
 				# debug
 				tree$A <- rbind( tree$A, A)
@@ -348,20 +357,23 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 				tree$ih <- c( tree$ih, h1)
 				
 				#if (is.infinite(L)) browser()
+				#print (c(h1, -L, sum(ratekl)))
 				#if (is.nan(L)) browser()
 				
 				# finite size corrections for lines not involved in coalescent
 				{ #
 					p_a     <- tree$lstates[alpha,]
 					p_i_mat <- tree$mstates[extantLines,]
-					A_mat   <- t( matrix( A, nrow=m, ncol=length(extantLines) )  )
-					p_a_mat <- t( matrix(p_a, nrow=m, ncol=length(extantLines)) )
+					A_mat   <- t( matrix( A, nrow=tree$m, ncol=length(extantLines) )  )
+					p_a_mat <- t( matrix(p_a, nrow=tree$m, ncol=length(extantLines)) )
 					rho_mat <- A_mat /  (A_mat - p_i_mat)
 					rterms  <- p_a_mat / (A_mat - p_i_mat)
 					lterms  <- rho_mat %*% p_a
-					lterms <- matrix(lterms, nrow=length(lterms), ncol=m) #
+					lterms <- matrix(lterms, nrow=length(lterms), ncol=tree$m) #
 					new_p_i <- p_i_mat * (lterms - rterms)
 					new_p_i <- new_p_i / rowSums(new_p_i)
+					corrupted <- is.nan(rowSums(new_p_i))
+					new_p_i[corrupted,] <- p_i_mat[corrupted,]
 					tree$mstates[extantLines,] <- new_p_i
 				}
 			}
@@ -417,7 +429,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 	parms$FGY_H_BOUNDARIES 		<- seq(0, maxHeight, length.out = fgyResolution) #TODO
 	parms$F_DISCRETE 			<- lapply( parms$FGY_H_BOUNDARIES, function(h) { F.(maxSampleTime-h) })
 	parms$G_DISCRETE 			<- lapply( parms$FGY_H_BOUNDARIES, function(h) { G.(maxSampleTime-h) })
-	parms$Y_DISCRETE 			<- lapply( parms$FGY_H_BOUNDARIES, function(h) { Y.(maxSampleTime-h) })
+	parms$Y_DISCRETE 			<- lapply( parms$FGY_H_BOUNDARIES, function(h) { pmax( 1e-16, Y.(maxSampleTime-h) ) })
 	parms$F. 					<- function(FGY_INDEX) { parms$F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
 	parms$G. 					<- function(FGY_INDEX) { parms$G_DISCRETE[[FGY_INDEX]] }
 	parms$Y. 					<- function(FGY_INDEX) { parms$Y_DISCRETE[[FGY_INDEX]] }
