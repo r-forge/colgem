@@ -464,11 +464,66 @@ coalescent.log.likelihood <- function(bdt, FGY, integrationMethod = 'rk4',  cens
 	ll
 }
 
+coalescent.log.likelihood2 <- function( bdt, births, migrations, deaths, nonDemeDynamics,  t0, x0, parms=NA, fgyResolution = 2000)
+{
+	demeNames <- rowNames(births)
+	m <- nrow(births)
+	nonDemeNames <- names(nonDemeDynamics)
+	mm <- length(nonDemeNames)
+	if (length(x0)!=m + mm) stop('initial conditons incorrect dimension') 
+	tBirths <- function(x, t)
+	{
+		with(as.list(x), 
+		 sapply( 1:m, function(k) 
+		   sum(sapply(1:m, function(l)
+		     eval(parse(text=births[l,k])))
+		)))
+	}
+	tMigrationsIn <- function(x,t)
+	{
+		with(as.list(x), 
+		 sapply( 1:m, function(k) 
+		   sum(sapply(1:m, function(l)
+		     eval(parse(text=migrations[l,k])))
+		)))
+	}
+	tMigrationsOut <- function(x,t)
+	{
+		with(as.list(x), 
+		 sapply( 1:m, function(k) 
+		   sum(sapply(1:m, function(l)
+		     eval(parse(text=migrations[k,l])))
+		)))
+	}
+	tDeaths <- function(x, t) 
+	{
+		with(as.list(x, t), 
+		  sapply(1:m, function(k) eval(parse(text=deaths[k])) ) 
+		) 
+	}
+	dNonDeme <- function(x, t) 
+	{
+		with(as.list(x, t), 
+		  sapply(1:mm, function(k) eval(parse(text=nonDemeDynamics[k])) ) 
+		) 
+	}
+	dx <- function(t, y, parms, ...) 
+	{
+		dxdeme <- tBirths(y, t) + tMigrationsIn(y, t) - tMigrationsOut(y,t) + tDeaths(y,t)
+		names(dxdeme) <- demeNames
+		dxnondeme <- dNonDeme(y, t) 
+		names(dxnondeme) <- nonDemeNames
+		list( c(dxdeme, dxnondeme) )
+	}
+	ox <- ode(y=x0, times, func=dx, parms)
+#~ 	TODO 
+}
+
 
 #' Simulate binary dated tree
 #' @export
-simulatedBinaryDatedTree <- function( x, ...) UseMethod("simulatedBinaryDatedTree")
-simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
+#~ simulatedBinaryDatedTree <- function( x, ...) UseMethod("simulatedBinaryDatedTree")
+simulatedBinaryDatedTree <- function(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
 {
 	require(ape)
 #~ simulates a coalescent tree, assumes F., G. and Y. are defined
