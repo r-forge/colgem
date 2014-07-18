@@ -1,3 +1,4 @@
+#~ NOTE JULY 16 '14, currently broken
 #~ HIV model, random sample 200 at 20 years
 #~ simulated tree using MASTER 1.4.1 http://tgvaughan.github.io/MASTER/
 #~ simulation used Gillespie discrete event methods; see HIVModel.xml 
@@ -47,7 +48,8 @@ FofX <- function(X, param)
 {
   return(  matrix( rbind(c(X['I0'] * X['S'] * param$beta0, 0), c(X['I1'] * X['S'] * param$beta1, 0)) , 2,2)) 
 }
-GofX <- function(X, param){
+GofX <- function(X, param)
+{
   return( matrix( rbind(c(0, X['I0'] * param$gamma0 ), c(0, 0)), 2,2 ) )
 }
 dX <- function(t, X, param, ...)
@@ -76,10 +78,12 @@ tryCatch( {o <- ode(X0, times, dX, param)}, error = function(e) { return(Inf) } 
 S <- approxfun( o[,1], o[,2] )
 Y1 <- approxfun( o[,1], o[,3] )
 Y2 <- approxfun( o[,1], o[,4] )
-Y. <<- function(t) { c(I0 = Y1(t), I1 = Y2(t)) }
-F. <<- function(t) { FofX(c(S = S(t), Y.(t)), param) }
-G. <<- function(t) { GofX(c(S = S(t), Y.(t)), param) }
-return( -coalescent.log.likelihood(bdt) )
+Y. <- function(t) { c(I0 = Y1(t), I1 = Y2(t)) }
+F. <- function(t) { FofX(c(S = S(t), Y.(t)), param) }
+G. <- function(t) { GofX(c(S = S(t), Y.(t)), param) }
+FGY <- list( F. = F., G.=G., Y.=Y. )
+browser()
+return( -coalescent.log.likelihood(bdt, FGY) )
 }
 
 
