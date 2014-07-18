@@ -464,7 +464,7 @@ coalescent.log.likelihood <- function(bdt, FGY, integrationMethod = 'rk4',  cens
 	ll
 }
 
-coalescent.log.likelihood2 <- function( bdt, births, migrations, deaths, nonDemeDynamics,  t0, x0, parms=NA, fgyResolution = 2000)
+coalescent.log.likelihood2 <- function( bdt, births, migrations, deaths, nonDemeDynamics,  t0, x0, parms=NA, fgyResolution = 2000, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=FALSE)
 {
 	demeNames <- rowNames(births)
 	m <- nrow(births)
@@ -515,14 +515,60 @@ coalescent.log.likelihood2 <- function( bdt, births, migrations, deaths, nonDeme
 		names(dxnondeme) <- nonDemeNames
 		list( c(dxdeme, dxnondeme) )
 	}
-	ox <- ode(y=x0, times, func=dx, parms)
-#~ 	TODO 
+	.birth.matrix <- function( x, t) 
+	{
+		with(as.list(x), 
+		 sapply( 1:m, function(k) 
+		   sapply(1:m, function(l)
+		     eval(parse(text=births[k,l]))
+		)))
+	}
+	.migration.matrix <- function( x, t) 
+	{
+		with(as.list(x), 
+		 sapply( 1:m, function(k) 
+		   sapply(1:m, function(l)
+		     eval(parse(text=migrations[k,l]))
+		)))
+	}
+	times <-  seq(t0, bdt$maxSampleTime, length.out=fgyResolution)
+	dh <- times[2] - times[1]
+	ox <- ode(y=x0, times, func=dx, parms, method=integrationMethod)
+	Ys <- ox[,demeNames]
+	Fs <- lapply( nrow(ox):1, function(i) .birth.matrix(ox[,demeNames], ox[1,1])  ) # dh *
+	Gs <- lapply( nrow(ox):1, function(i) .migration.matrix(ox[,demeNames], ox[1,1])  ) #dh *
+	
+	# make fgy parms for discretized rate functions
+	fgyparms <- list()
+	fgyparms$FGY_RESOLUTION		<- fgyResolution
+	fgyparms$maxHeight			<- bdt$maxHeight #
+	fgyparms$FGY_H_BOUNDARIES 		<- seq(0, bdt$maxHeight, length.out = fgyResolution) 
+	fgyparms$F_DISCRETE 			<- Fs
+	fgyparms$G_DISCRETE 			<- Gs
+	fgyparms$Y_DISCRETE 			<- Ys
+	fgyparms$F. 					<- function(FGY_INDEX) { parms$F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
+	fgyparms$G. 					<- function(FGY_INDEX) { parms$G_DISCRETE[[FGY_INDEX]] }
+	fgyparms$Y. 					<- function(FGY_INDEX) { parms$Y_DISCRETE[[FGY_INDEX]] }
+	
+	tree <- .calculate.internal.states(bdt, fgyparms,  censorAtHeight=censorAtHeight, forgiveAgtY = forgiveAgtY,   INTEGRATIONMETHOD = integrationMethod)
+	
+	i<- (length(tree$sampleTimes)+1):(tree$Nnode + length(tree$tip.label))
+	if (censorAtHeight) { 
+		internalHeights <- tree$heights[(length(tree$tip.label)+1):length(tree$heights)]
+		i <- i[internalHeights <= censorAtHeight] 
+	}
+	ll <- sum( log(tree$coalescentRates[i]) ) + sum( tree$logCoalescentSurvivalProbability[i] )#sum( log(tree$coalescentSurvivalProbability[i]) ) 
+	if (censorAtHeight) { ll<- tree$Nnode *  ll/length(i)}
+	if (is.nan(ll) | is.na(ll) ) ll <- -Inf
+	#return(list( ll, tree)) #for debugging
+	ll
 }
 
 
 #' Simulate binary dated tree
 #' @export
 #~ simulatedBinaryDatedTree <- function( x, ...) UseMethod("simulatedBinaryDatedTree")
+#~ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
 simulatedBinaryDatedTree <- function(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
 {
 	require(ape)
