@@ -2,7 +2,7 @@
 #' @import ape
 #' @import deSolve
 
-#~ DONE (not implemented) finite size correction for pair (i,j) of lineages at internal node (see written notes): 
+#~ DONE  finite size correction for pair (i,j) of lineages at internal node (see written notes): 
 #~	if i transmits and is type k: 
 #~ 		pjk -> pjk * (Yk-1)/Yk
 #~ 		pjl (l\neq k) -> pjl * Yk/(Yk-pjk)
@@ -10,11 +10,10 @@
 #~ 	add these terms to the likelihood:
 #~ 		if 0 bl at s_i: \sum_k pik Ak / Yk
 #~ 		else: \sum_k pik (1-Ak/Yk)
-#~ TODO validate input & raise warnings
+#~ DONE validate input & raise warnings
 #~ 	check sampleTimes compatible with edge.length; FGY functions defined over length of tree;
 #~ TODO adapt coalescent simulator to heterochronous sample
 #~ TODO add option to switch to semi-structured coalescent if difference in line states below threshold
-#~ TODO test heterochronous samples
 
 
 
@@ -88,21 +87,43 @@ SIMULATIONTIMERESOLUTION<- 1e+04
 	return(phylo)
 }
 
+#' If the taxon labels end in _<label>, treat <label> as the discrete 
+#' state of the taxon, eg location of sampling
+.infer.sample.states.from.annotation <- function(phylo, sampleStatesAnnotations)
+{
+	annotations <- regmatches( phylo$tip.label, regexpr( '_[.,-]*[[:alnum:]]+$', phylo$tip.label) )
+	annotations <- unname( sapply( annotations, function(a) substr(a, 2, nchar(a))) )
+	sampleStates <- matrix( 0, nrow=length(phylo$tip.label), length(sampleStatesAnnotations ) )
+	rownames(sampleStates) <- phylo$tip.label
+	for (i in 1:length(phylo$tip.label))
+	{
+		k <- which( annotations[i] == sampleStatesAnnotations )
+		sampleStates[i,k] <- 1
+	}
+	sampleStates
+}
 
 #' Create binary dated tree
 #' binaryDatedTree class, includes heights for each node and other helper variables
 #' @export
 #~ binaryDatedTree <- function( x, ...) UseMethod("binaryDatedTree")
 #~ binaryDatedTree.default <- function( phylo, sampleTimes, sampleStates){
-binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
+binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnotations=NULL){
 	if (phylo$Nnode != length(phylo$tip.label) - 1 ) { stop('Object class phylo is not a binary tree.') }
-	phylo$sampleTimes <- sampleTimes
-	phylo$sampleStates <- sampleStates
+	if (is.null(names(sampleTimes))) stop('sampleTimes vector must have names of tip labels')
+	if (is.null(sampleStates) & !is.null(sampleStatesAnnotations) ) sampleStates <- .infer.sample.states.from.annotation(phylo, sampleStatesAnnotations)
+	if (is.null(sampleStates) & is.null(sampleStatesAnnotations)) { sampleStates <- t(t( rep(1, length(phylo$tip.label)))) ; rownames( sampleStates) <- phylo$tip.label }
+	if (is.null(rownames(sampleStates))) stop('sampleStates matrix must have row names of tip labels')
+	
+	phylo$sampleTimes <- sampleTimes[phylo$tip.label]
+	phylo$sampleStates <- sampleStates[phylo$tip.label, ]
+	if (is.vector(phylo$sampleStates)) phylo$sampleStates <- t(t( phylo$sampleStates))
 	phylo <- .calculate.heights(phylo)
 	phylo <- .calculate.edgemap(phylo)
 	phylo <- .initialize.states(phylo)
 	phylo$coalescentRates <- rep(0, (phylo$Nnode + length(phylo$tip.label)))
-	phylo$coalescentSurvivalProbability <- rep(1, (phylo$Nnode + length(phylo$tip.label)))
+	phylo$coalescentSurvivalProbability <- rep(0, (phylo$Nnode + length(phylo$tip.label)))
+	phylo$logCoalescentSurvivalProbability <- rep(-Inf, (phylo$Nnode + length(phylo$tip.label)))
 	class(phylo) <- c("binaryDatedTree", "phylo")
 	return(phylo)
 }
@@ -241,7 +262,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 }
 
 
-.calculate.internal.states <- function(tree, fgyParms,  censorAtHeight=FALSE, forgiveAgtY = FALSE,   INTEGRATIONMETHOD = 'rk4'){
+.calculate.internal.states <- function(tree, fgyParms,  censorAtHeight=FALSE, forgiveAgtY = 0.20,   INTEGRATIONMETHOD = 'rk4'){
 	F. <- fgyParms$F.; G. <- fgyParms$G.; Y. <- fgyParms$Y. ; 
 	FGY_RESOLUTION <- fgyParms$FGY_RESOLUTION
 	
@@ -261,6 +282,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 	    as.vector( fgyParms$G_DISCRETE[[i]] ), 
 	    fgyParms$Y_DISCRETE[[i]]) ) 
 	)
+	fgymat <- pmax(fgymat, 0)
 	
 	.solve.Q.A.L <- function(h0, h1, A0, L0)
 	{ # uses C implementation
@@ -292,16 +314,21 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 		h0 <- eventTimes[ih]
 		h1 <- eventTimes[ih+1]
 		fgy <- get.fgy(h1)
+		
 		#get A0, process new samples, calculate state of new lines
 		extantLines <- .extant.at.height(h0, tree)
 		if (length(extantLines) > 1 ){
 			A0 <- colSums(tree$mstates[extantLines,])
 		} else if (length(extantLines)==1){ A0 <- tree$mstates[extantLines,] }
-		
 		out <- .solve.Q.A.L(h0, h1, A0,  L)
 		Q <- out[[1]]
 		A <- out[[2]]
 		L <- out[[3]]
+		
+		# clean output
+		if (is.nan(L)) L <- Inf
+		if (sum(is.nan(Q)) > 0) Q <- diag(length(A))
+		if (sum(is.nan(A)) > 0) A <- A0
 		
 		#update mstates
 		tree$mstates[extantLines,] <- t( t(Q) %*% t(tree$mstates[extantLines,])  )
@@ -316,9 +343,27 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 		
 		with(fgy, 
 		{
-			#tryCatch( {
-			if ( (sum(.Y) < length(extantLines)) & (!forgiveAgtY) ) L <- Inf
-			#}, error = function(e) browser() )
+			# check inputs
+			if (sum(is.na(.Y)) > 0) {warning('Model returned NA population values', .F, ' ', .G, ' ', .Y); 
+				.Y[is.na(.Y)] <- 0}
+			if (sum(is.na(.G)) > 0) {warning('Model returned NA population values', .F, ' ', .G, ' ', .Y); 
+				.G[is.na(.G)] <- 0}
+			if (sum(is.na(.F)) > 0) {warning('Model returned NA population values', .F, ' ', .G, ' ', .Y); 
+				.F[is.na(.F)] <- 0}
+				
+			if (sum(is.nan(.Y)) > 0) {warning('Model returned NaN population values', .F, ' ', .G, ' ', .Y); 
+				.Y[is.nan(.Y)] <- 0}
+			if (sum(is.nan(.G)) > 0) {warning('Model returned NaN population values', .F, ' ', .G, ' ', .Y); 
+				.G[is.nan(.G)] <- 0}
+			if (sum(is.nan(.F)) > 0) {warning('Model returned NaN population values', .F, ' ', .G, ' ', .Y); 
+				.F[is.nan(.F)] <- 0}
+			
+			if (sum(.Y < 0) > 0) {warning('Model returned negative population values', .F, ' ', .G, ' ', .Y); .Y <- pmax(.Y,0)}
+			if (sum(.G < 0) > 0) {warning('Model returned negative population values', .F, ' ', .G, ' ', .Y); .G <- pmax(.G, 0)}
+			if (sum(.F < 0) > 0) {warning('Model returned negative population values', .F, ' ', .G, ' ', .Y); .F <- pmax(.F, 0)}
+			
+			if ( (sum(.Y) < length(extantLines)) & (!forgiveAgtY) ) { L <- Inf }
+			else if ( (sum(.Y) < length(extantLines)) & (length(extantLines)/length(tree$tip.label)) > forgiveAgtY) { L <- Inf }
 			
 			for (alpha in newNodes){
 				u <- tree$daughters[alpha,1]
@@ -327,6 +372,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 					tree$ustates[u,] <- tree$mstate[u,]
 					tree$ustates[v,] <- tree$mstate[v,]
 					
+					.Y <- pmax(A, .Y)
 					FklXpuk_Yk <- (.F * tree$ustates[u,]/.Y)
 					FklXpvk_Yk <- (.F * tree$ustates[v,]/.Y)
 					FklXpuk_Yk[is.nan(FklXpuk_Yk)] <- 0
@@ -334,11 +380,10 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 					vk_Yk <- pmin(pmax(tree$ustates[v,]/.Y, 0),1); vk_Yk[is.nan(vk_Yk)] <- 0
 					uk_Yk <- pmin(pmax(tree$ustates[u,]/.Y, 0),1); uk_Yk[is.nan(uk_Yk)] <- 0
 					ratekl <- FklXpuk_Yk %*% vk_Yk + FklXpvk_Yk %*% uk_Yk
-					if (sum(ratekl) < 0) browser()
 				}
 				
 				
-				tree$coalescentRates[alpha] <- sum(ratekl) 
+				tree$coalescentRates[alpha] <- max( sum(ratekl) , 0)
 				if (is.nan(L))
 				{
 					L <- (h1 - h0) * sum(ratekl) 
@@ -360,10 +405,6 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 				tree$lnS <- c( tree$lnS, -L )
 				tree$lnr <- c( tree$lnr, log(sum(ratekl)) )
 				tree$ih <- c( tree$ih, h1)
-				
-				#if (is.infinite(L)) browser()
-				#print (c(h1, -L, sum(ratekl)))
-				#if (is.nan(L)) browser()
 				
 				# finite size corrections for lines not involved in coalescent
 				{ #
@@ -388,6 +429,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 		if (length(newNodes) > 0) {
 		  L <- 0 }
 	}
+	 
 	return(tree)
 } 
 
@@ -443,7 +485,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates){
 #############################
 # CALCULATE LIKELIHOOD
 #' @export
-coalescent.log.likelihood <- function(bdt, FGY, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=FALSE, fgyResolution = 2000)
+coalescent.log.likelihood.fgy <- function(bdt, FGY, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2, fgyResolution = 2000)
 {
 # bdt : binaryDatedTree instance
 	fgyParms <- .gen.discrete.fgy.parameters(FGY, fgyResolution, bdt$maxSampleTime, bdt$maxHeight ) 
@@ -464,79 +506,228 @@ coalescent.log.likelihood <- function(bdt, FGY, integrationMethod = 'rk4',  cens
 	ll
 }
 
-coalescent.log.likelihood2 <- function( bdt, births, migrations, deaths, nonDemeDynamics,  t0, x0, parms=NA, fgyResolution = 2000, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=FALSE)
+
+
+solve.model.unstructured <- function(t0, x0, births,  deaths, nonDemeDynamics, parms, integrationMethod = 'rk4')
 {
-	demeNames <- rowNames(births)
-	m <- nrow(births)
+	m <- 1
+	mm <- length(nonDemeDynamics)
+	demeNames <- names(births)
 	nonDemeNames <- names(nonDemeDynamics)
-	mm <- length(nonDemeNames)
-	if (length(x0)!=m + mm) stop('initial conditons incorrect dimension') 
-	tBirths <- function(x, t)
-	{
-		with(as.list(x), 
-		 sapply( 1:m, function(k) 
-		   sum(sapply(1:m, function(l)
-		     eval(parse(text=births[l,k])))
-		)))
-	}
-	tMigrationsIn <- function(x,t)
-	{
-		with(as.list(x), 
-		 sapply( 1:m, function(k) 
-		   sum(sapply(1:m, function(l)
-		     eval(parse(text=migrations[l,k])))
-		)))
-	}
-	tMigrationsOut <- function(x,t)
-	{
-		with(as.list(x), 
-		 sapply( 1:m, function(k) 
-		   sum(sapply(1:m, function(l)
-		     eval(parse(text=migrations[k,l])))
-		)))
-	}
-	tDeaths <- function(x, t) 
-	{
-		with(as.list(x, t), 
-		  sapply(1:m, function(k) eval(parse(text=deaths[k])) ) 
-		) 
-	}
+	if (length(x0)!=m + mm) stop('initial conditons incorrect dimension', x0, m, mm) 
+	if ( sum( !(c(demeNames, nonDemeNames) %in% names(x0)) )  > 0)  stop('initial conditions vector incorrect names', names(x0), demeNames, nonDemeNames)
+	y0 <- c( x0[c(demeNames, nonDemeNames)])
+	pbirths <- parse(text=births)
+	pmigrations <- NA
+	pdeaths <- parse(text=deaths)
+	pndd <- sapply(1:mm, function(k) parse(text=nonDemeDynamics[k]) )
+	
 	dNonDeme <- function(x, t) 
 	{
 		with(as.list(x, t), 
-		  sapply(1:mm, function(k) eval(parse(text=nonDemeDynamics[k])) ) 
-		) 
+		  sapply(1:mm, function(k) eval(pndd[k]) )  
+		)
 	}
+	
+	times <- seq(t0, bdt$maxSampleTime, length.out=1000)
 	dx <- function(t, y, parms, ...) 
 	{
-		dxdeme <- tBirths(y, t) + tMigrationsIn(y, t) - tMigrationsOut(y,t) + tDeaths(y,t)
-		names(dxdeme) <- demeNames
-		dxnondeme <- dNonDeme(y, t) 
-		names(dxnondeme) <- nonDemeNames
-		list( c(dxdeme, dxnondeme) )
+		with(as.list(y), 
+		{
+			f <- eval(pbirths) 
+			dxdeme <- f - eval(pdeaths) 
+			dxnondeme <- dNonDeme(y, t) 
+			names(dxdeme) <- demeNames
+			names(dxnondeme) <- nonDemeNames
+			list( c(dxdeme, dxnondeme ) )
+		})
 	}
+	ode(y=y0, times, func=dx, parms, method=integrationMethod)
+}
+
+
+#~ if (m==1) tree <- .calculate.internal.states.unstructuredModel(bdt, maxHeight=censorAtHeight, globalParms = fgyParms)
+coalescent.log.likelihood.unstructuredModel <- function(bdt, births,  deaths, nonDemeDynamics,  t0, x0, parms=NA, fgyResolution = 2000, integrationMethod = 'euler',  censorAtHeight=FALSE, forgiveAgtY=.2 )
+{
+	m <- 1
+	mm <- length(nonDemeDynamics)
+	demeNames <- names(births)
+	nonDemeNames <- names(nonDemeDynamics)
+	if (length(x0)!=m + mm) stop('initial conditons incorrect dimension', x0, m, mm) 
+	if ( sum( !(c(demeNames, nonDemeNames) %in% names(x0)) )  > 0)  stop('initial conditions vector incorrect names', names(x0), demeNames, nonDemeNames)
+	y0 <- c( x0[c(demeNames, nonDemeNames)], Lambda=0)
+	pbirths <- parse(text=births)
+	pmigrations <- NA
+	pdeaths <- parse(text=deaths)
+	pndd <- sapply(1:mm, function(k) parse(text=nonDemeDynamics[k]) )
+	
+	dNonDeme <- function(x, t) 
+	{
+		with(as.list(x, t), 
+		  sapply(1:mm, function(k) eval(pndd[k]) )  
+		)
+	}
+	
+	
+	nodeHeights <- bdt$heights[(length(bdt$tip.label)+1):length(bdt$heights)]
+	delta <- c(rep(1, length(bdt$sampleTimes)), rep(-1, length(nodeHeights)))
+	delta_times <- c(bdt$maxSampleTime - bdt$sampleTimes, nodeHeights) 
+	itimes <- sort(delta_times, index.return=TRUE)$ix
+	ltt_times <- sort(delta_times)
+	ltt <- cumsum( delta[itimes] )
+	n.extant <- function(h)
+	{
+		#sum(sampleHeights < h) - sum(nodeHeights < h)
+		#pmax( -(ltt_times - h), 0)
+		i <- which( ltt_times - h < 0, arr.ind=TRUE) #TODO should return n at 0, but returns 1
+		if (length(i) == 0) return(1)
+		ltt[i[length(i)]]
+	}
+	
+	co.rate <- function( f, Y, A)
+	{
+		if (A < 2) return(  0 )
+		else return( (A * (A-1) /2) * (2*f) / max(2, Y*(Y-1)) )
+	}
+	
+	times <- unique(sort( c( bdt$maxSampleTime - bdt$heights, seq(t0, bdt$maxSampleTime, length.out=fgyResolution) )) )
+	dx <- function(t, y, parms, ...) 
+	{
+		with(as.list(y), 
+		{
+			f <- eval(pbirths) 
+			dxdeme <- f - eval(pdeaths) 
+			dxnondeme <- dNonDeme(y, t) 
+			names(dxdeme) <- demeNames
+			names(dxnondeme) <- nonDemeNames
+			dL <- co.rate( f, y[demeNames], n.extant( bdt$maxSampleTime - t ) )
+			list( c(dxdeme, dxnondeme, Lambda=unname(dL) ) )
+		})
+	}
+	ox <- ode(y=y0, times, func=dx, parms, method=integrationMethod)
+	
+	xinterps <- lapply( 2:ncol(ox) , function(k) approxfun( rule=2, bdt$maxSampleTime - ox[,1], ox[,k] ) )
+	xinterp <- function(h) {
+		x <- sapply( 1:length(x0), function(k) xinterps[[k]](h)  )
+		names(x) <- names(x0) 
+		x
+	}
+	heights <- sort(unique( c(bdt$maxSampleTime - sampleTimes, nodeHeights) ) )
+		dLambda <- function(t, y, parms, ...) 
+		{
+			h <- t
+			t <- bdt$maxSampleTime - h
+			x <- xinterp( h) 
+			Y <- x[demeNames]
+			f <- with(as.list(x), eval(pbirths) )
+			A <- n.extant(h)
+			pco <- (A * (A-1) /2) * (2 / max(2, Y*(Y-1)) )
+			if (Y <= 2) pco <- (A * (A-1) /2)
+			#if (Y <= 2) pco <- 1
+			#if (pco > 1) pco <- 1 #maybe dont do this.. 
+			if (A < 2) dL <- 0
+			else dL <- pco * f 
+			list( c(Lambda=unname( dL )))
+		}
+		oL  <- ode(y=c(Lambda=0), heights, func=dLambda, parms, method=integrationMethod )
+		
+		nodeIndices = nI <- unique( c( 1, sort( which(oL[,1] %in% nodeHeights) ) ) )
+		thetas <- sapply( 1:(length(nI)-1), function(i) exp(-(oL[ nI[i+1],2]-oL[nI[i],2]) ) )
+		corates <- sapply( nodeHeights, function(h) dLambda( h, NA, parms )[[1]] )
+		ll <- unname( sum(log(corates)) + sum(log(thetas))  )
+	return(ll)
+}
+
+coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0, x0,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2)
+{
+	if (is.vector( births)) return(coalescent.log.likelihood.unstructuredModel(
+	   bdt, births,  deaths, nonDemeDynamics,  t0, x0, parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod,  censorAtHeight=censorAtHeight, forgiveAgtY=forgiveAgtY) )
+	if ( (bdt$maxSampleTime - bdt$maxHeight) < t0) return(-Inf)
+	demeNames <- rownames(births)
+	m <- nrow(births)
+	nonDemeNames <- names(nonDemeDynamics)
+	mm <- length(nonDemeNames)
+	
+	#reorder x0
+	if (length(x0)!=m + mm) stop('initial conditons incorrect dimension', x0, m, mm) 
+	if ( sum( !(c(demeNames, nonDemeNames) %in% names(x0)) )  > 0)  stop('initial conditions vector incorrect names', names(x0), demeNames, nonDemeNames)
+	y0 <- x0[c(demeNames, nonDemeNames)]
+	
+	#parse equations
+	pbirths <- sapply( 1:m, function(k) 
+		   sapply(1:m, function(l)
+		     parse(text=births[k,l])
+		))
+	pmigrations <- sapply( 1:m, function(k) 
+		   sapply(1:m, function(l)
+		     parse(text=migrations[k,l])
+		))
+	pdeaths <- sapply(1:m, function(k) parse(text=deaths[k]) )
+	pndd <- sapply(1:mm, function(k) parse(text=nonDemeDynamics[k]) )
+	
 	.birth.matrix <- function( x, t) 
 	{
 		with(as.list(x), 
-		 sapply( 1:m, function(k) 
-		   sapply(1:m, function(l)
-		     eval(parse(text=births[k,l]))
+		 t(matrix( sapply( 1:m^2, function(k) eval(pbirths[k]))
+		     , nrow=m, ncol=m
 		)))
 	}
 	.migration.matrix <- function( x, t) 
 	{
 		with(as.list(x), 
-		 sapply( 1:m, function(k) 
-		   sapply(1:m, function(l)
-		     eval(parse(text=migrations[k,l]))
+		 t(matrix( sapply( 1:m^2, function(k) eval(pmigrations[k]))
+		     , nrow=m, ncol=m
 		)))
 	}
-	times <-  seq(t0, bdt$maxSampleTime, length.out=fgyResolution)
-	dh <- times[2] - times[1]
-	ox <- ode(y=x0, times, func=dx, parms, method=integrationMethod)
-	Ys <- ox[,demeNames]
-	Fs <- lapply( nrow(ox):1, function(i) .birth.matrix(ox[,demeNames], ox[1,1])  ) # dh *
-	Gs <- lapply( nrow(ox):1, function(i) .migration.matrix(ox[,demeNames], ox[1,1])  ) #dh *
+	tBirths <- function(x, t)
+	{
+		colSums( .birth.matrix(x,t) )
+	}
+	tMigrationsIn <- function(x,t)
+	{
+		colSums( .migration.matrix(x, t) )
+	}
+	tMigrationsOut <- function(x,t)
+	{
+		rowSums( .migration.matrix(x, t))
+	}
+	tDeaths <- function(x, t) 
+	{
+		with(as.list(x, t), 
+		  sapply(1:m, function(k) eval(pdeaths[k]) )
+		) 
+	}
+	
+	
+	dNonDeme <- function(x, t) 
+	{
+		with(as.list(x, t), 
+		  sapply(1:mm, function(k) eval(pndd[k]) )  
+		)
+	}
+	dx <- function(t, y, parms, ...) 
+	{
+		dxdeme <- tBirths(y, t) + tMigrationsIn(y, t) - tMigrationsOut(y,t) - tDeaths(y,t)
+		names(dxdeme) <- demeNames
+		dxnondeme <- dNonDeme(y, t) 
+		names(dxnondeme) <- nonDemeNames
+		list( c(dxdeme, dxnondeme) )
+	}
+	
+	
+	times1 <- seq(bdt$maxSampleTime - bdt$maxHeight, bdt$maxSampleTime, length.out=fgyResolution)
+	dh <- times1[2] - times1[1]
+	if (bdt$maxSampleTime - bdt$maxHeight - dh <= t0) { times0 <- c() }
+	else{ times0 <-  seq(t0, bdt$maxSampleTime - bdt$maxHeight - dh, by=dh) }
+	times <- unique( c( times0, times1) )
+	#print(system.time(
+		#ox <- ode(y=y0, times, func=dx, parms, method=integrationMethod)
+	#))
+	ox <- ode(y=y0, times, func=dx, parms, method=integrationMethod)
+	# note does not include first value, which is t0; 2nd value corresponds to root of tree
+	Ys <- lapply( nrow(ox):(1+length(times0)), function(i) ox[i, demeNames] )
+	Fs <- lapply( nrow(ox):(1+length(times0)), function(i) .birth.matrix(ox[i,], ox[i,1])  ) # dh *
+	Gs <- lapply( nrow(ox):(1+length(times0)), function(i) .migration.matrix(ox[i,], ox[i,1])  ) #dh *
 	
 	# make fgy parms for discretized rate functions
 	fgyparms <- list()
@@ -546,9 +737,9 @@ coalescent.log.likelihood2 <- function( bdt, births, migrations, deaths, nonDeme
 	fgyparms$F_DISCRETE 			<- Fs
 	fgyparms$G_DISCRETE 			<- Gs
 	fgyparms$Y_DISCRETE 			<- Ys
-	fgyparms$F. 					<- function(FGY_INDEX) { parms$F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
-	fgyparms$G. 					<- function(FGY_INDEX) { parms$G_DISCRETE[[FGY_INDEX]] }
-	fgyparms$Y. 					<- function(FGY_INDEX) { parms$Y_DISCRETE[[FGY_INDEX]] }
+	fgyparms$F. 					<- function(FGY_INDEX) { fgyparms$F_DISCRETE[[FGY_INDEX]] } #note does not actually use arg t
+	fgyparms$G. 					<- function(FGY_INDEX) { fgyparms$G_DISCRETE[[FGY_INDEX]] }
+	fgyparms$Y. 					<- function(FGY_INDEX) { fgyparms$Y_DISCRETE[[FGY_INDEX]] }
 	
 	tree <- .calculate.internal.states(bdt, fgyparms,  censorAtHeight=censorAtHeight, forgiveAgtY = forgiveAgtY,   INTEGRATIONMETHOD = integrationMethod)
 	
@@ -557,11 +748,88 @@ coalescent.log.likelihood2 <- function( bdt, births, migrations, deaths, nonDeme
 		internalHeights <- tree$heights[(length(tree$tip.label)+1):length(tree$heights)]
 		i <- i[internalHeights <= censorAtHeight] 
 	}
-	ll <- sum( log(tree$coalescentRates[i]) ) + sum( tree$logCoalescentSurvivalProbability[i] )#sum( log(tree$coalescentSurvivalProbability[i]) ) 
+	ll <- sum( log(tree$coalescentRates[i]) ) + sum( tree$logCoalescentSurvivalProbability[i] )
 	if (censorAtHeight) { ll<- tree$Nnode *  ll/length(i)}
 	if (is.nan(ll) | is.na(ll) ) ll <- -Inf
 	#return(list( ll, tree)) #for debugging
 	ll
+}
+
+solve.model <- function(t0, x0, births,  deaths, nonDemeDynamics, parms, migrations=NA, integrationMethod = 'rk4')
+{
+	if (is.vector(births)) return(solve.model.unstructured(t0, x0, births,  deaths, nonDemeDynamics, parms, integrationMethod = integrationMethod) )
+	demeNames <- rownames(births)
+	m <- nrow(births)
+	nonDemeNames <- names(nonDemeDynamics)
+	mm <- length(nonDemeNames)
+	
+	y0 <- x0[c(demeNames, nonDemeNames)]
+	
+	#parse equations
+	pbirths <- sapply( 1:m, function(k) 
+		   sapply(1:m, function(l)
+		     parse(text=births[k,l])
+		))
+	pmigrations <- sapply( 1:m, function(k) 
+		   sapply(1:m, function(l)
+		     parse(text=migrations[k,l])
+		))
+	pdeaths <- sapply(1:m, function(k) parse(text=deaths[k]) )
+	pndd <- sapply(1:mm, function(k) parse(text=nonDemeDynamics[k]) )
+	
+	.birth.matrix <- function( x, t) 
+	{
+		with(as.list(x), 
+		 t(matrix( sapply( 1:m^2, function(k) eval(pbirths[k]))
+		     , nrow=m, ncol=m
+		)))
+	}
+	.migration.matrix <- function( x, t) 
+	{
+		with(as.list(x), 
+		 t(matrix( sapply( 1:m^2, function(k) eval(pmigrations[k]))
+		     , nrow=m, ncol=m
+		)))
+	}
+	tBirths <- function(x, t)
+	{
+		colSums( .birth.matrix(x,t) )
+	}
+	tMigrationsIn <- function(x,t)
+	{
+		colSums( .migration.matrix(x, t) )
+	}
+	tMigrationsOut <- function(x,t)
+	{
+		rowSums( .migration.matrix(x, t))
+	}
+	tDeaths <- function(x, t) 
+	{
+		with(as.list(x, t), 
+		  sapply(1:m, function(k) eval(pdeaths[k]) )
+		) 
+	}
+	
+	dNonDeme <- function(x, t) 
+	{
+		with(as.list(x, t), 
+		  sapply(1:mm, function(k) eval(pndd[k]) )  
+		)
+	}
+	dx <- function(t, y, parms, ...) 
+	{
+		dxdeme <- tryCatch( {
+			tBirths(y, t) + tMigrationsIn(y, t) - tMigrationsOut(y,t) - tDeaths(y,t)
+			}, error = function(e) rep(0, m))
+		names(dxdeme) <- demeNames
+		dxnondeme <- tryCatch({ dNonDeme(y, t)  
+			}, error = function(e) rep(0, mm))
+		names(dxnondeme) <- nonDemeNames
+		list( c(dxdeme, dxnondeme) )
+	}
+	
+	times <-    seq(t0, bdt$maxSampleTime, length.out=1000) 
+	ode(y=y0, times, func=dx, parms, method=integrationMethod)
 }
 
 
