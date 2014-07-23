@@ -15,7 +15,7 @@
 
 This vignette will demonstrate how to use a coalescent models as described in~\cite{volz2012complex} to estimate transmission rate parameters given a pathogen genealogy.
 
-Suppose an epidemic occurs according to dependent susceptible-infected-recovered process, and a given infected individual generates a new infection at the rate $\beta S I$, where $S$ is the number susceptible and $\beta$ is the transmission rate.
+Suppose an epidemic occurs according to a density-dependent susceptible-infected-recovered process, and a given infected individual generates a new infection at the rate $\beta S I$, where $S$ is the number susceptible and $\beta$ is the transmission rate.
 %\begin{align}
 %I \xrightarrow{\beta S I} 2I 
 %\end{align}
