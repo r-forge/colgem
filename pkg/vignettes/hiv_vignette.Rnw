@@ -48,6 +48,7 @@ The model is also illustrated in figure~\ref{fig:hivmodel}.
 		EHI transmission rate & $\beta_0$ & 1.2 \\
 		Chronic transmission rate & $\beta_1$ & 0.03 \\
 		AIDS transmission rate  &  $\beta_2$ & 0.09 \\
+		Initial no. susceptibles & $S(0)$ & 3000 \\
 		\hline 
 	\end{tabular}
 \end{center}
@@ -59,7 +60,7 @@ library(rcolgem)
 @
 
 Create a list of the true parameter values: 
-<<echo=FALSE>>=
+<<echo=TRUE>>=
 parms_truth <- list(gamma0 = 1
  , gamma1 = 1/7
  , gamma2 = 1/2

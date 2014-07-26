@@ -49,6 +49,7 @@ The model is also illustrated in figure~\ref{fig:hivmodel}.
 		EHI transmission rate & $\beta_0$ & 1.2 \\
 		Chronic transmission rate & $\beta_1$ & 0.03 \\
 		AIDS transmission rate  &  $\beta_2$ & 0.09 \\
+		Initial no. susceptibles & $S(0)$ & 3000 \\
 		\hline 
 	\end{tabular}
 \end{center}
@@ -62,6 +63,21 @@ The package is loaded by
 \end{Schunk}
 
 Create a list of the true parameter values: 
+\begin{Schunk}
+\begin{Sinput}
+> parms_truth <- list(gamma0 = 1
++  , gamma1 = 1/7
++  , gamma2 = 1/2
++  , mu = 1/30
++  , b=.036
++  , beta0 = 12./10
++  , beta1=3./100
++  , beta2=9./100
++  , S_0=3000
++  , I0_0=1, I1_0=0.01, I2_0=0.01
++  , m=3, mm=1) 
+\end{Sinput}
+\end{Schunk}
 
 \begin{figure}
 \begin{center}
@@ -152,7 +168,16 @@ We load this by:
 > bdt <- binaryDatedTree(tree
 +   , sampleTimes
 +   , sampleStatesAnnotations=INFECTEDNAMES)
+> bdt
 \end{Sinput}
+\begin{Soutput}
+Phylogenetic tree with 318 tips and 317 internal nodes.
+
+Tip labels:
+	89_I1, 349_I2, 339_I1, 64_I1, 203_I1, 30_I0, ...
+
+Rooted; includes branch lengths.
+\end{Soutput}
 \end{Schunk}
 Note well that the vector of sample times must have the names of each taxon. 
 If the state of each taxon (the stage of infection of each sample unit) is encoded at the end of taxon name, it can be loaded automatically by passing the argument \texttt{sampleStatesAnnotations}.  
@@ -176,7 +201,7 @@ Now we can calculate the likelihood of the tree and see how long it takes:
 \begin{Soutput}
 [1] -2214.567
    user  system elapsed 
-  1.568   0.000   1.570 
+  1.564   0.008   1.575 
 \end{Soutput}
 \end{Schunk}
 It's a bit slow, so note that there is an alternative low-level interface that can be a bit faster (\texttt{coalescent.log.likelihood.fgy}). Also note that changing the \texttt{integrationMethod} (choose `euler'), \texttt{censorAtHeight} (only fit to part of the tree) and \texttt{fgyResolution} (set to a smaller value) options can dramatically speed up the calculation at the cost of some accuracy. 
