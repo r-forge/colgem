@@ -5,12 +5,12 @@
   calculate.cluster.size.moments.from.tree(bdt, heights)
 }
 \arguments{
-  \item{bdt}{binary dated tree}
+  \item{bdt}{ a binary dated tree object}
 
   \item{heights}{vector numeric, heights at which to
   calculate cluster sizes}
 }
 \description{
-  Calculate cluster size moments from tree
+  Calculate cluster moments of the distribution of cluster sizes (clade sizes), which change as a function of the threhold TMRCA used for defining  clades. Currently, only sampling at a single time point is supported.
 }
 

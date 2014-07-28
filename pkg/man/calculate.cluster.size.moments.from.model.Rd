@@ -8,23 +8,23 @@
     fgyResolution = 100, integrationMethod = "adams")
 }
 \arguments{
-  \item{sampleTime}{}
+  \item{sampleTime}{Time that sample is collected}
 
-  \item{sampleStates}{}
+  \item{sampleStates}{(n X M) matrix of sample states for each taxon}
 
   \item{maxTime}{}
 
   \item{minTime}{}
 
-  \item{timeResolution}{}
+  \item{timeResolution}{Determines time step for discrete approximations. Larger resolution gives smaller time step. }
 
-  \item{discretizeRates}{}
+  \item{discretizeRates}{if TRUE, a discrete approximation is used to calculate transition rates}
 
-  \item{fgyResolution}{}
+  \item{fgyResolution}{the number of time steps to use if discretizeRates=TRUE}
 
-  \item{integrationMethod}{}
+  \item{integrationMethod}{method passed to deSolve::ode}
 }
 \description{
-  Calculate cluster size moments from model
+  Calculate cluster moments of the distribution of cluster sizes (clade sizes), which change as a function of the threhold TMRCA used for defining  clades. Currently, only sampling at a single time point is supported.
 }
 

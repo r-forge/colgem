@@ -1,8 +1,9 @@
 \name{simulatedBinaryDatedTree}
 \alias{simulatedBinaryDatedTree}
-\title{Simulate a binary dated tree using a coalescent model given a complex demographic process}
+\title{Simulate a binary dated tree using a coalescent model given a demographic history}
 \usage{
-  simulatedBinaryDatedTree(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
+  simulatedBinaryDatedTree(sampleTime, sampleStates, FGY=NULL
+    , discretizeRates=FALSE, fgyResolution = 100) 
 }
 \arguments{
 	\item{sampleTime}{ Time when sample takes place.}

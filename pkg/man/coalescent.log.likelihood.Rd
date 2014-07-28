@@ -4,19 +4,19 @@
 Compute the likelihood of a gene genealogy conditonal on a demographic history.
 }
 \description{
-This function 
+ The likelihood of a dated tree is calculated conditional on a demographic history, which consists of the timeseries of births, migrations, and population sizes in the population. 
 }
 
 }
 \usage{
-coalescent.log.likelihood( bdt, births, deaths, nonDemeDynamics,  t0, x0,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2)
+coalescent.log.likelihood( bdt, births, deaths, nonDemeDynamics
+   ,  t0, x0,  migrations=NA,  parms=NA, fgyResolution = 2000
+   , integrationMethod = 'rk4',  censorAtHeight=FALSE
+   , forgiveAgtY=.2)
 }
-%- maybe also 'usage' for other objects documented here.
-%- bdt, births, deaths, nonDemeDynamics,  t0, x0,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2
+
 \arguments{
-  \item{bdt}{
-    A binaryDatedTree object which extends ape:phylo and includes dates of tips and internal nodes.
-}
+  \item{bdt}{A binaryDatedTree object which extends ape:phylo and includes dates of tips and internal nodes.}
 \item{births}{ A vector or matrix of strings. These are evaluated as equations for the number of births within and between demes. Must have rownames and colnames corresponding to the names of demes.}
 \item{deaths}{ A vector of strings. These are evaluated as equations for the rate that lineages in each deme are terminated.  Must have rownames corresponding to the names of demes.}
 \item{nonDemeDynamics}{ A vector of strings. These are evaluated as equations for the rate of change of state variables that do not correspond to demes. Vector must have names of state variables. }
@@ -30,8 +30,7 @@ coalescent.log.likelihood( bdt, births, deaths, nonDemeDynamics,  t0, x0,  migra
 \item{forgiveAgtY}{If this is zero, function will return -Inf if at any point the number of lineages exceeds population size. If this value is between zero and one, function will return -Inf if the number of lineages exceeds population size AND number of lineages is less than this value times sample size. This can be useful when fitting models where the number of lineages is close to population size, which often happens during early period of exponential growth. }
 }
 \details{
-%%  ~~ If necessary, more details than the description above ~~
-See vignettes for more detailed usage. 
+   See vignettes for  detailed usage. 
 }
 \value{
 %%  ~Describe the value returned
@@ -57,13 +56,7 @@ Erik M Volz
 %% ~~objects to See Also as \code{\link{help}}, ~~~
 \code{\link{binaryDatedTree}}
 }
-\examples{
-##---- Should be DIRECTLY executable !! ----
-##-- ==>  Define data, use random,
-##--	or do  help(data=index)  for the standard data sets.
 
-## The function is currently defined as...
-}
 % Add one or more standard keywords, see file 'KEYWORDS' in the
 % R documentation directory.
 \keyword{ coalescent }

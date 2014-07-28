@@ -2,7 +2,8 @@
 \alias{binaryDatedTree}
 \title{Create binary dated tree. The binaryDatedTree class includes heights for each node and other helper variables}
 \usage{
-  binaryDatedTree(phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnotations=NULL)
+  binaryDatedTree(phylo, sampleTimes, sampleStates=NULL
+  , sampleStatesAnnotations=NULL)
 }
 \arguments{
 	\item{phylo}{ape::phylo tree}
