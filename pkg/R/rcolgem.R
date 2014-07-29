@@ -612,7 +612,7 @@ coalescent.log.likelihood.unstructuredModel <- function(bdt, births,  deaths, no
 		names(x) <- names(x0) 
 		x
 	}
-	heights <- sort(unique( c(bdt$maxSampleTime - sampleTimes, nodeHeights) ) )
+	heights <- sort(unique( c(bdt$maxSampleTime - bdt$sampleTimes, nodeHeights) ) )
 		dLambda <- function(t, y, parms, ...) 
 		{
 			h <- t
