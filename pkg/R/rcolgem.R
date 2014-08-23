@@ -638,7 +638,7 @@ coalescent.log.likelihood.unstructuredModel <- function(bdt, births,  deaths, no
 	return(ll)
 }
 
-coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0, x0,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2)
+coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0, x0,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2, returnTree=FALSE)
 {
 	if (is.vector( births)) return(coalescent.log.likelihood.unstructuredModel(
 	   bdt, births,  deaths, nonDemeDynamics,  t0, x0, parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod,  censorAtHeight=censorAtHeight, forgiveAgtY=forgiveAgtY) )
@@ -752,6 +752,7 @@ coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0
 	if (censorAtHeight) { ll<- tree$Nnode *  ll/length(i)}
 	if (is.nan(ll) | is.na(ll) ) ll <- -Inf
 	#return(list( ll, tree)) #for debugging
+	if (returnTree) return(list(ll, tree))
 	ll
 }
 
