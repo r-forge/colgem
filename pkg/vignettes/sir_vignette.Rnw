@@ -177,9 +177,15 @@ I0 <- exp(coef(fit)['lnI0'])
 parms <- parms_truth
 parms$beta <- beta
 x0 <- c(I=unname(I0), S = unname(parms$S0) )
-o <- solve.model.unstructured(t0, x0, births,  deaths
-  , nonDemeDynamics, parms)
-otruth <- solve.model.unstructured(t0, x0, births,  deaths
+#TODO broken
+
+o <- solve.model.unstructured(t0,bdt$maxSampleTime, x0
+   , births
+   ,  deaths
+   , nonDemeDynamics, parms)
+otruth <- solve.model.unstructured(t0, bdt$maxSampleTime, x0
+  , births
+  ,  deaths
   , nonDemeDynamics, parms_truth)
 plot(epidata$t, epidata$I, type='line'
   , ylim=c(0, 100+max(max(o[,2]),max(epidata$I))))

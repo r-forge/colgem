@@ -231,7 +231,7 @@ We can compare the fitted model to the true number of infected through time, whi
 parms <- parms_truth
 parms[c('beta0', 'beta1', 'beta2', 't0')] <- unname(exp(coef(fit)))
 parms$t0 <- log(parms$t0)
-ox <- solve.model(coef(fit)['t0'], x0=c(I0=1, I1=.01, I2=.01, S = parms_truth$S_0), births, deaths, nonDemeDynamics, parms, migrations=migrations, integrationMethod = 'rk4')
+ox <- solve.model(t0=coef(fit)['t0'], t1=bdt$maxSampleTime, x0=c(I0=1, I1=.01, I2=.01, S = parms_truth$S_0), births,  deaths, nonDemeDynamics, parms, migrations=migrations, integrationMethod = 'rk4')
 matplot( rtimes, rY, xlab='Time', ylab='Number infected by stage') 
 lines(ox[,1] , ox[, 'I0'], col='black')
 lines(ox[,1] , ox[, 'I1'], col='red')

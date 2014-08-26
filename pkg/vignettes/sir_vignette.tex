@@ -16,7 +16,7 @@
 
 This vignette will demonstrate how to use a coalescent models as described in~\cite{volz2012complex} to estimate transmission rate parameters given a pathogen genealogy.
 
-Suppose an epidemic occurs according to dependent susceptible-infected-recovered process, and a given infected individual generates a new infection at the rate $\beta S I$, where $S$ is the number susceptible and $\beta$ is the transmission rate.
+Suppose an epidemic occurs according to a density-dependent susceptible-infected-recovered process, and a given infected individual generates a new infection at the rate $\beta S I$, where $S$ is the number susceptible and $\beta$ is the transmission rate.
 %\begin{align}
 %I \xrightarrow{\beta S I} 2I 
 %\end{align}
@@ -86,7 +86,16 @@ And, create a tree with dated tips and internal nodes:
 > sampleTimes <- rep(12, 75)
 > names(sampleTimes) <- tree$tip.label
 > bdt <- binaryDatedTree( tree, sampleTimes=sampleTimes) 
+> bdt
 \end{Sinput}
+\begin{Soutput}
+Phylogenetic tree with 75 tips and 74 internal nodes.
+
+Tip labels:
+	24, 7, 36, 75, 52, 38, ...
+
+Rooted; includes branch lengths.
+\end{Soutput}
 \end{Schunk}
 Note that the vector of sample times must have names corresponding to the taxon labels in tree. 
 
@@ -135,7 +144,7 @@ Now we can calculate the likelihood of the tree and assess how long it takes:
 \begin{Soutput}
 [1] 67.75564
    user  system elapsed 
-  0.668   0.000   0.668 
+  0.500   0.000   0.504 
 \end{Soutput}
 \end{Schunk}
 Note that changing the \texttt{integrationMethod} (choose `euler'), \texttt{censorAtHeight} (only fit to part of the tree) and \texttt{fgyResolution} (set to a smaller value) options can dramatically speed up the calculation at the cost of some accuracy. 
@@ -231,9 +240,15 @@ We can compare the fitted model to the true number of infected through time, whi
 > parms <- parms_truth
 > parms$beta <- beta
 > x0 <- c(I=unname(I0), S = unname(parms$S0) )
-> o <- solve.model.unstructured(t0, x0, births,  deaths
-+   , nonDemeDynamics, parms)
-> otruth <- solve.model.unstructured(t0, x0, births,  deaths
+> #TODO broken
+> 
+> o <- solve.model.unstructured(t0,bdt$maxSampleTime, x0
++    , births
++    ,  deaths
++    , nonDemeDynamics, parms)
+> otruth <- solve.model.unstructured(t0, bdt$maxSampleTime, x0
++   , births
++   ,  deaths
 +   , nonDemeDynamics, parms_truth)
 > plot(epidata$t, epidata$I, type='line'
 +   , ylim=c(0, 100+max(max(o[,2]),max(epidata$I))))

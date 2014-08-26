@@ -769,7 +769,7 @@ coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0
 	ll
 }
 
-solve.model <- function(t0,t1, timeResolution, x0, births,  deaths, nonDemeDynamics, parms, migrations=NA, integrationMethod = 'rk4')
+solve.model <- function(t0,t1, x0, births,  deaths, nonDemeDynamics, parms, migrations=NA, integrationMethod = 'rk4', timeResolution=1000)
 {
 	if (is.vector(births)) return(solve.model.unstructured(t0,t1, x0, births,  deaths, nonDemeDynamics, parms, timeResolution=timeResolution, integrationMethod = integrationMethod) )
 	
@@ -779,18 +779,14 @@ solve.model <- function(t0,t1, timeResolution, x0, births,  deaths, nonDemeDynam
 }
 
 
-#' Simulate binary dated tree
+#' Simulate a binary dated tree from given model
 #' @export
-#~ simulatedBinaryDatedTree <- function( x, ...) UseMethod("simulatedBinaryDatedTree")
-#~ simulatedBinaryDatedTree.default <- function(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
-#~ simulatedBinaryDatedTree <- function(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
-#~ simulatedBinaryDatedTree <- function(sampleTime, sampleStates, FGY=NULL, discretizeRates=FALSE, fgyResolution = 100) 
-simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0, sampleTimes,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4')
+simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0, sampleTimes, sampleStates,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4')
 {
 	require(ape)
 #~ same attributes are defined as binaryDatedTree
 #~ <preliminaries>
-	n 			<- nrow(sampleStates)
+	n 			<- length(sampleTimes)
 	Nnode 		<-  n-1
 	
 	FGY_INDEX <- 1
@@ -837,9 +833,9 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 	lstates 		<- matrix(-1, (Nnode + n), m)
 	mstates 		<- matrix(-1, (Nnode + n), m)
 	ustates 		<- matrix(-1, (Nnode + n), m)
-	lstates[1:n,] 	<- sampleStates
-	mstates[1:n,] 	<- sampleStates
-	ustates[1:n,] 	<- sampleStates
+	ssm <- matrix( 0, nrow=n, ncol=m)
+	lstates[1:n, sampleStates] 	<- 1
+	mstates[1:n,] 	<- lstates[1:n,]
 #~ </preliminaries>
 	
 #~ <survival time to next event>
