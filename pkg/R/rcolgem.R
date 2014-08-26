@@ -912,7 +912,7 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 					eventTime <- nextBoundaryTime
 					if (eventTime == nextSampleHeight)
 					{
-						extant <- c(extant, (1:n)[sampleHeights==eventTime]
+						extant <- c(extant, (1:n)[sampleHeights==eventTime])
 						A <- colSums( mstates[extant,])
 						parms$A <- A
 						tryCatch({
