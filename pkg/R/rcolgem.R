@@ -808,8 +808,8 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 	# make fgy parms for discretized rate functions
 	globalParms <- list()
 	globalParms$FGY_RESOLUTION			<- fgyResolution
-	globalParms$maxHeight				<- bdt$maxHeight #
-	globalParms$FGY_H_BOUNDARIES 		<- seq(0, bdt$maxHeight, length.out = fgyResolution) 
+	globalParms$maxHeight				<- maxSampleTime-t0 #
+	globalParms$FGY_H_BOUNDARIES 		<- seq(0, maxSampleTime-t0, length.out = fgyResolution) 
 	globalParms$F_DISCRETE 			<- tfgy[[2]] #Fs
 	globalParms$G_DISCRETE 			<- tfgy[[3]] #Gs
 	globalParms$Y_DISCRETE 			<- tfgy[[4]] #Ys
