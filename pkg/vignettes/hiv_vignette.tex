@@ -201,7 +201,7 @@ Now we can calculate the likelihood of the tree and see how long it takes:
 \begin{Soutput}
 [1] -2214.567
    user  system elapsed 
-  1.564   0.008   1.575 
+  1.580   0.004   1.590 
 \end{Soutput}
 \end{Schunk}
 It's a bit slow, so note that there is an alternative low-level interface that can be a bit faster (\texttt{coalescent.log.likelihood.fgy}). Also note that changing the \texttt{integrationMethod} (choose `euler'), \texttt{censorAtHeight} (only fit to part of the tree) and \texttt{fgyResolution} (set to a smaller value) options can dramatically speed up the calculation at the cost of some accuracy. 
