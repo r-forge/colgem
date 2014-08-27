@@ -331,11 +331,20 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 		if (sum(is.nan(A)) > 0) A <- A0
 		
 		#update mstates
-		tree$mstates[extantLines,] <- t( t(Q) %*% t(tree$mstates[extantLines,])  )
-		tree$mstates[extantLines,] <- abs(tree$mstates[extantLines,]) / rowSums(abs(tree$mstates[extantLines,]))
+		if (length(extantLines) > 1)
+		{
+			tree$mstates[extantLines,] <- t( t(Q) %*% t(tree$mstates[extantLines,])  )
+			tree$mstates[extantLines,] <- abs(tree$mstates[extantLines,]) / rowSums(abs(tree$mstates[extantLines,]))
+			#recalculate A
+			A <- colSums(tree$mstates[extantLines,])
+		}
+		else{
+			tree$mstates[extantLines,] <- t( t(Q) %*% tree$mstates[extantLines,] )
+			tree$mstates[extantLines,] <- abs(tree$mstates[extantLines,]) / sum(abs(tree$mstates[extantLines,]))
+			#recalculate A
+			A <- tree$mstates[extantLines,]
+		}
 		
-		#recalculate A
-		A <- colSums(tree$mstates[extantLines,])
 		
 		#if applicable: update ustate & calculate lstate of new line 
 		newNodes <- which( tree$heights == h1)
