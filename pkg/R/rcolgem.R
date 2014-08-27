@@ -725,7 +725,7 @@ make.fgy <- function(t0, t1, births, deaths, nonDemeDynamics,  x0,  migrations=N
 	Fs <- lapply( nrow(ox):(1+length(times0)), function(i) .birth.matrix(ox[i,], ox[i,1])  ) # dh *
 	Gs <- lapply( nrow(ox):(1+length(times0)), function(i) .migration.matrix(ox[i,], ox[i,1])  ) #dh *
 	
-	list( times0, Fs, Gs, Ys , ox )
+	list( times, Fs, Gs, Ys , ox )
 }
 
 coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0, x0,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2, returnTree=FALSE)
@@ -882,7 +882,7 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 #TODO these trees are still biased? check rate matrices
 #~ 	extant <- 1:n
 	extant <- (1:n)[sampleHeights==0]
-	lineageCounter <- length(extant)+1 # next lineage will have this index
+	lineageCounter <- n+1 # next lineage will have this index
 	A <- .calculate.A(mstates, extant)
 	h <- 0
 	notdone <- TRUE
@@ -903,13 +903,6 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 		
 			eventTime <- rexp(1, rate=lambda) + h
 			nextBoundaryTime <- min( nextSampleHeight, globalParms$FGY_H_BOUNDARIES[FGY_INDEX] )
-#~ if (is.na(eventTime)) browser()
-#~ if (is.na(nextBoundaryTime)) browser()
-if (is.na(FGY_INDEX < globalParms$FGY_RESOLUTION & eventTime > nextBoundaryTime)) browser()
-if (is.nan(FGY_INDEX < globalParms$FGY_RESOLUTION & eventTime > nextBoundaryTime)) browser()
-if (is.null(FGY_INDEX < globalParms$FGY_RESOLUTION & eventTime > nextBoundaryTime)) browser()
-#~ browser()
-tryCatch(
 			while (FGY_INDEX < globalParms$FGY_RESOLUTION &  eventTime > nextBoundaryTime) {
 					eventTime <- nextBoundaryTime
 					if (eventTime == nextSampleHeight)
@@ -937,7 +930,6 @@ tryCatch(
 					}
 			}
 		 
-, error = function(e) browser() )
 		# which event? 2m2 possibilities
 		cumulativeRatesVector <- cumsum( c( as.vector(rates$lambdaCoalescent), as.vector(rates$lambdaMigration+rates$lambdaInvisibleTransmission)) )
 		# as.vector unravels matrices by column
@@ -1022,11 +1014,12 @@ tryCatch(
 #~ (ideally ape would not care about the edge order, but actually most functions assume a certain order)
 	sampleTimes2 <- sampleTimes; names(sampleTimes2) <- tip.label
 	sampleStates2 <- lstates[1:n,]; rownames(sampleStates2) <- tip.label
-browser()
 	phylo <- read.tree(text=write.tree(self) )
 	sampleTimes2 <- sampleTimes2[phylo$tip.label]; sampleTimes2 <- unname(sampleTimes2)
 	sampleStates2 <- sampleStates2[phylo$tip.label,]; sampleStates2 <- unname(sampleStates2)
-	binaryDatedTree(phylo, sampleTimes2, sampleStates2)
+	names(sampleTimes2) <- phylo$tip.label
+	rownames(sampleStates2) <- phylo$tip.label
+	binaryDatedTree(phylo, sampleTimes2, sampleStates = sampleStates2)
 #~ </>
 }
 
