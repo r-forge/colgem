@@ -789,7 +789,7 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 	n 			<- length(sampleTimes)
 	Nnode 		<-  n-1
 	
-	FGY_INDEX <- 1
+	FGY_INDEX <- 2
 	
 	demeNames <- rownames(births)
 	m <- nrow(births)
@@ -801,7 +801,7 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 	sampleHeights <- maxSampleTime- sampleTimes 
 	sortedSampleHeights <- sort(sampleHeights)
 	uniqueSortedSampleHeights <- unique(sortedSampleHeights)
-	ussh_index <- 1
+	ussh_index <- 2
 	
 	tfgy <- make.fgy( t0, maxSampleTime, births, deaths, nonDemeDynamics,  x0,  migrations=migrations,  parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod )
 	
@@ -809,7 +809,7 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 	globalParms <- list()
 	globalParms$FGY_RESOLUTION			<- fgyResolution
 	globalParms$maxHeight				<- maxSampleTime-t0 #
-	globalParms$FGY_H_BOUNDARIES 		<- seq(0, maxSampleTime-t0, length.out = fgyResolution) 
+	globalParms$FGY_H_BOUNDARIES 		<- tfgy[[1]] #seq(0, maxSampleTime-t0, length.out = fgyResolution) 
 	globalParms$F_DISCRETE 			<- tfgy[[2]] #Fs
 	globalParms$G_DISCRETE 			<- tfgy[[3]] #Gs
 	globalParms$Y_DISCRETE 			<- tfgy[[4]] #Ys
@@ -834,8 +834,9 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 	mstates 		<- matrix(-1, (Nnode + n), m)
 	ustates 		<- matrix(-1, (Nnode + n), m)
 	ssm <- matrix( 0, nrow=n, ncol=m)
-	lstates[1:n, sampleStates] 	<- 1
+	lstates[1:n,] <- t( sapply( 1:n, function(i) diag(m)[sampleStates[i],] ) )
 	mstates[1:n,] 	<- lstates[1:n,]
+
 #~ </preliminaries>
 	
 #~ <survival time to next event>
@@ -843,19 +844,11 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 	{
 		# eliminate diag elements for migration
 		t 					<- parms$maxSampleTime - h
-		if (discretizeRates)
-		{
 			.G 					<- globalParms$G.(FGY_INDEX) 
 			.F 					<- globalParms$F.(FGY_INDEX)
 			.Y 					<- globalParms$Y.(FGY_INDEX) 
-		} else
-		{
-			.G 					<- globalParms$G.(t) 
-			.F 					<- globalParms$F.(t)
-			.Y 					<- globalParms$Y.(t) 
-		}
-		X1 					<- pmax( parms$A / .Y, 0)
-		X2 					<-  pmax( (.Y - parms$A ) / .Y, 0)
+		X1 <- parms$A / .Y
+		X2 					<-  (.Y - parms$A ) / .Y
 		X1[is.nan(X1)] 		<- 0
 		X2[is.nan(X2)] 		<- 0
 		X1[is.infinite(X1)] <- 0
@@ -878,17 +871,23 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 		return( list( -theta * (sum(rates$lambdaCoalescent) + sum(rates$lambdaMigration) + sum(rates$lambdaInvisibleTransmission)) ) )
 	}
 #~ </survival time to next event>
+
+.calculate.A <- function(mstates, extant)
+{
+	if (length(extant) > 1) return( colSums(mstates[extant,]) )
+	mstates[extant,]
+}
 	
 #~ <simulate tree>
 #TODO these trees are still biased? check rate matrices
 #~ 	extant <- 1:n
 	extant <- (1:n)[sampleHeights==0]
 	lineageCounter <- length(extant)+1 # next lineage will have this index
-	A <- colSums( mstates[extant,])
+	A <- .calculate.A(mstates, extant)
 	h <- 0
 	notdone <- TRUE
 	lastExtant <- lineageCounter-1 #DEBUG
-	nextSampleHeight <- uniqueSortedSampleHeights[ussh_index+1]
+	nextSampleHeight <-  ifelse( ussh_index > length(uniqueSortedSampleHeights), Inf, uniqueSortedSampleHeights[ussh_index])
 	while(notdone){
 		r <- runif(1)
 		theta0 <- 1
@@ -901,15 +900,22 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 		
 		# solve survival time
 		# NOTE more accurate to interpolate approxfun( thetaTimes, o[,2] ), & invert to find o[o[,2]==r,1]
-		{
+		
 			eventTime <- rexp(1, rate=lambda) + h
 			nextBoundaryTime <- min( nextSampleHeight, globalParms$FGY_H_BOUNDARIES[FGY_INDEX] )
+#~ if (is.na(eventTime)) browser()
+#~ if (is.na(nextBoundaryTime)) browser()
+if (is.na(FGY_INDEX < globalParms$FGY_RESOLUTION & eventTime > nextBoundaryTime)) browser()
+if (is.nan(FGY_INDEX < globalParms$FGY_RESOLUTION & eventTime > nextBoundaryTime)) browser()
+if (is.null(FGY_INDEX < globalParms$FGY_RESOLUTION & eventTime > nextBoundaryTime)) browser()
+#~ browser()
+tryCatch(
 			while (FGY_INDEX < globalParms$FGY_RESOLUTION &  eventTime > nextBoundaryTime) {
 					eventTime <- nextBoundaryTime
 					if (eventTime == nextSampleHeight)
 					{
 						extant <- c(extant, (1:n)[sampleHeights==eventTime])
-						A <- colSums( mstates[extant,])
+						A <- .calculate.A(mstates, extant)
 						parms$A <- A
 						tryCatch({
 								rates <- calculate.rates( eventTime, parms, globalParms) ; parms$rates <- rates
@@ -917,7 +923,7 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 						lambda <- (sum(rates$lambdaCoalescent) + sum(rates$lambdaMigration) + sum(rates$lambdaInvisibleTransmission))
 						eventTime <- eventTime + rexp(1, rate=lambda)
 						ussh_index <- ussh_index + 1
-						nextSampleHeight <- uniqueSortedSampleHeights[ussh_index]
+						nextSampleHeight <-  ifelse( ussh_index > length(uniqueSortedSampleHeights), Inf, uniqueSortedSampleHeights[ussh_index])
 						nextBoundaryTime <- min( nextSampleHeight, globalParms$FGY_H_BOUNDARIES[FGY_INDEX] )
 					}
 					else{
@@ -930,8 +936,8 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 						nextBoundaryTime <- min( nextSampleHeight, globalParms$FGY_H_BOUNDARIES[FGY_INDEX] )
 					}
 			}
-		} 
-		
+		 
+, error = function(e) browser() )
 		# which event? 2m2 possibilities
 		cumulativeRatesVector <- cumsum( c( as.vector(rates$lambdaCoalescent), as.vector(rates$lambdaMigration+rates$lambdaInvisibleTransmission)) )
 		# as.vector unravels matrices by column
@@ -1001,7 +1007,7 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 		}
 		if(length(extant) <= 1 ) {notdone <- FALSE}
 		else{
-			A <- colSums( mstates[extant,])
+			A <- .calculate.A(mstates, extant)
 			h <-  eventTime
 		}
 	}
@@ -1015,7 +1021,8 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 #~ <reorder edges for compatibility with ape::phylo functions> 
 #~ (ideally ape would not care about the edge order, but actually most functions assume a certain order)
 	sampleTimes2 <- sampleTimes; names(sampleTimes2) <- tip.label
-	sampleStates2 <- sampleStates; rownames(sampleStates2) <- tip.label
+	sampleStates2 <- lstates[1:n,]; rownames(sampleStates2) <- tip.label
+browser()
 	phylo <- read.tree(text=write.tree(self) )
 	sampleTimes2 <- sampleTimes2[phylo$tip.label]; sampleTimes2 <- unname(sampleTimes2)
 	sampleStates2 <- sampleStates2[phylo$tip.label,]; sampleStates2 <- unname(sampleStates2)

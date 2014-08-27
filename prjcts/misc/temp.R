@@ -1,4 +1,5 @@
 require(rcolgem)
+source('rcolgem.R')
 parms_truth <- list(gamma0 = 1
  , gamma1 = 1/7
  , gamma2 = 1/2
