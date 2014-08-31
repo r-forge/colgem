@@ -47,7 +47,8 @@ p <- ox[nrow(ox),INFECTEDNAMES]; p  <- p / sum(p)
 sampleTimes <- seq(40, 50, length.out=n) 
 sampleStates <- c( rep(1, round(n*p[1])) , rep(2, round(p[2]*n)), rep(3, round(p[3]*n)))
 sampleStates <- sample(sampleStates, n , replace=FALSE) #shuffle elements
-names(sampleTimes) <- 1:n
+names(sampleTimes) <- as.character( -n:-1 )
+names(sampleStates) <- names(sampleTimes)
 print(system.time( bdt <- simulate.binary.dated.tree(births, deaths, nonDemeDynamics
   ,  t0=0
   , x0=c(I0=1, I1=.01, I2=.01, S = parms_truth$S_0)
@@ -95,8 +96,8 @@ obj_fun <- function(lnbeta0, lnbeta1, lnbeta2, t0)
 	print(c(mll, exp(c(lnbeta0, lnbeta1, lnbeta2) ), t0) )
 	mll
 }
-
-fit <- mle2(obj_fun
-  , start=list(lnbeta0=log(1), lnbeta1=log(.1), lnbeta2=log(.2), t0=0)
-  , method='Nelder-Mead', optimizer='optim' 
-  ,  control=list(trace=6, reltol=1e-8))
+#~ 
+#~ fit <- mle2(obj_fun
+#~   , start=list(lnbeta0=log(1), lnbeta1=log(.1), lnbeta2=log(.2), t0=0)
+#~   , method='Nelder-Mead', optimizer='optim' 
+#~   ,  control=list(trace=6, reltol=1e-8))
