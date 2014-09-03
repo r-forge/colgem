@@ -292,24 +292,34 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 	
 	
 	# construct forcing timeseries for ode's
-	times <- fgyParms$FGY_H_BOUNDARIES
-	fgymat <- t( sapply( 1:FGY_RESOLUTION, function(i) 
-	  c( as.vector(fgyParms$F_DISCRETE[[i]]) , 
-	    as.vector( fgyParms$G_DISCRETE[[i]] ), 
-	    fgyParms$Y_DISCRETE[[i]]) ) 
-	)
+#~ 	times <- fgyParms$FGY_H_BOUNDARIES
+	heights <- sort( fgyParms$FGY_H_BOUNDARIES )
+	heights <- heights[heights <= tree$maxHeight]
+	heights <- heights[heights >= 0]
+	fgymat <- t( sapply( heights, function(h) 
+	  with(get.fgy(h), {
+		c( as.vector(.F), as.vector(.G), as.vector(.Y) )
+	  })
+	) )
+#~ 	fgymat <- t( sapply( 1:FGY_RESOLUTION, function(i) 
+#~ 	  c( as.vector(fgyParms$F_DISCRETE[[i]]) , 
+#~ 	    as.vector( fgyParms$G_DISCRETE[[i]] ), 
+#~ 	    fgyParms$Y_DISCRETE[[i]]) ) 
+#~ 	)
+#~ browser()
 	fgymat <- pmax(fgymat, 0)
-	
+
 	.solve.Q.A.L <- function(h0, h1, A0, L0)
 	{ # uses C implementation
 		Q0 <- diag(tree$m)
-		parameters 	<- c(tree$m, tree$maxHeight, FGY_RESOLUTION, sum(A0), as.vector(fgymat))
+		parameters 	<- c(tree$m, tree$maxHeight, length(heights), sum(A0), as.vector(fgymat))
 		y0 <- c( as.vector( Q0), A0,  L0 ) #
 		#o <- ode(y=y0, c(h0,h1), func = "dQAL", parms = parameters, dllname = "dQAL-6.3", initfunc = "initfunc", method=INTEGRATIONMETHOD )
 		o <- ode(y=y0, c(h0,h1), func = "dQAL", parms = parameters, dllname = "rcolgem", initfunc = "initfunc", method=INTEGRATIONMETHOD )
 		Q1 		<- t( matrix(  abs(o[nrow(o),2:(1 + tree$m^2)]) , nrow=tree$m) ) #NOTE the transpose
 		A1 <- o[nrow(o), (1 + tree$m^2 + 1):(1 + tree$m^2 +  tree$m)]
 		L1 <- o[nrow(o), ncol(o)]
+#~ if (is.nan(L1)) {print('dQAL'); browser()}
 		return ( list(  unname(Q1), unname(A1),  unname(L1) ) ) #
 	}
 	
@@ -342,7 +352,8 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 		L <- out[[3]]
 		
 		# clean output
-		if (is.nan(L)) L <- Inf
+		if (is.nan(L)) {L <- Inf}
+#~ if (is.infinite(L)) {print('infinite 1'); browser(); }
 		if (sum(is.nan(Q)) > 0) Q <- diag(length(A))
 		if (sum(is.nan(A)) > 0) A <- A0
 		
@@ -386,10 +397,10 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 			if (sum(.Y < 0) > 0) {warning('Model returned negative population values', .F, ' ', .G, ' ', .Y); .Y <- pmax(.Y,0)}
 			if (sum(.G < 0) > 0) {warning('Model returned negative population values', .F, ' ', .G, ' ', .Y); .G <- pmax(.G, 0)}
 			if (sum(.F < 0) > 0) {warning('Model returned negative population values', .F, ' ', .G, ' ', .Y); .F <- pmax(.F, 0)}
-			
+#~ if (is.infinite(L)) {print('infinite 2'); browser(); }
 			if ( (sum(.Y) < length(extantLines)) & (!forgiveAgtY) ) { L <- Inf }
 			else if ( (sum(.Y) < length(extantLines)) & (length(extantLines)/length(tree$tip.label)) > forgiveAgtY) { L <- Inf }
-			
+#~ if (is.infinite(L)) {print('infinite 3'); browser(); }
 			for (alpha in newNodes){
 				u <- tree$daughters[alpha,1]
 				v <- tree$daughters[alpha,2]
@@ -416,6 +427,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 				tree$coalescentSurvivalProbability[alpha] <- exp(-L)
 				tree$logCoalescentSurvivalProbability[alpha] <- -L
 				
+#~ if( tree$coalescentSurvivalProbability[alpha]==0) browser()
 				
 				
 				if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
@@ -541,7 +553,6 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 	fgyParms <- list()
 	fgyParms$FGY_RESOLUTION		<- length(times)
 	fgyParms$maxHeight				<- bdt$maxHeight #
-	fgyParms$FGY_H_BOUNDARIES 		<- bdt$maxSampleTime - times 
 	# reverse order (present to past): 
 	fgyParms$F_DISCRETE 			<- lapply(length(births):1, function(k)  births[[k]] )
 	fgyParms$G_DISCRETE 			<- lapply(length(migrations):1, function(k)  migrations[[k]] )
@@ -555,6 +566,7 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 	fgyParms$F. 					<- function(h) { fgyParms$F_DISCRETE[[fgyParms$get.index(h)]] } #
 	fgyParms$G. 					<- function(h) { fgyParms$G_DISCRETE[[fgyParms$get.index(h)]] }
 	fgyParms$Y. 					<- function(h) { fgyParms$Y_DISCRETE[[fgyParms$get.index(h)]] }
+	fgyParms$FGY_H_BOUNDARIES 		<- bdt$maxSampleTime - times[length(times):1] 
 	
 	if (ncol( bdt$sampleStates ) ==1) 
 	  tree <- .calculate.internal.states.unstructuredModel(bdt, maxHeight=censorAtHeight, globalParms = fgyParms)
@@ -868,6 +880,7 @@ solve.model <- function(t0,t1, x0, births,  deaths, nonDemeDynamics, parms, migr
 
 #' Simulate a binary dated tree from given model
 #' @export
+#~ TODO : Error in kids[[parent[i]]] : attempt to select more than one element
 simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0, sampleTimes, sampleStates,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4')
 {
 	require(ape)
