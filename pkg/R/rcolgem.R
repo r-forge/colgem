@@ -550,6 +550,9 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSizes, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2, returnTree=FALSE)
 {
 # bdt : binaryDatedTree instance
+	maxtime <- times[length(times)]
+	mintime <- times[1]
+	if (mintime > (bdt$maxSampleTime - bdt$maxHeight)) {warning('Root of tree occurs before earliest time on time axis'); return(-Inf) }
 	fgyParms <- list()
 	fgyParms$FGY_RESOLUTION		<- length(times)
 	fgyParms$maxHeight				<- bdt$maxHeight #
@@ -558,8 +561,6 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 	fgyParms$G_DISCRETE 			<- lapply(length(migrations):1, function(k)  migrations[[k]] )
 	fgyParms$Y_DISCRETE 			<- lapply(length(demeSizes):1, function(k)  demeSizes[[k]] )
 	# the following line accounts for any discrepancies between the maximum time axis and the last sample time
-	maxtime <- times[length(times)]
-	mintime <- times[1]
 	fgyParms$hoffset = hoffset <- maxtime - bdt$maxSampleTime
 	if (hoffset < 0) stop( 'Time axis does not cover the last sample time' )
 	fgyParms$get.index <- function(h) min(1 + fgyParms$FGY_RESOLUTION * (h + hoffset) / ( maxtime - mintime ), fgyParms$FGY_RESOLUTION )
@@ -817,7 +818,7 @@ coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0
 {
 	if (is.vector( births)) return(coalescent.log.likelihood.unstructuredModel(
 	   bdt, births,  deaths, nonDemeDynamics,  t0, x0, parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod,  censorAtHeight=censorAtHeight, forgiveAgtY=forgiveAgtY) )
-	if ( (bdt$maxSampleTime - bdt$maxHeight) < t0) return(-Inf)
+	if ( (bdt$maxSampleTime - bdt$maxHeight) < t0) )) {warning('Root of tree occurs before earliest time on time axis'); return(-Inf) }
 	demeNames <- rownames(births)
 	m <- nrow(births)
 	nonDemeNames <- names(nonDemeDynamics)
