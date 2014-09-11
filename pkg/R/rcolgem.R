@@ -818,7 +818,7 @@ coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0
 {
 	if (is.vector( births)) return(coalescent.log.likelihood.unstructuredModel(
 	   bdt, births,  deaths, nonDemeDynamics,  t0, x0, parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod,  censorAtHeight=censorAtHeight, forgiveAgtY=forgiveAgtY) )
-	if ( (bdt$maxSampleTime - bdt$maxHeight) < t0) )) {warning('Root of tree occurs before earliest time on time axis'); return(-Inf) }
+	if ( (bdt$maxSampleTime - bdt$maxHeight) < t0)  {warning('Root of tree occurs before earliest time on time axis'); return(-Inf) }
 	demeNames <- rownames(births)
 	m <- nrow(births)
 	nonDemeNames <- names(nonDemeDynamics)
