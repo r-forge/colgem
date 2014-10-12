@@ -10,8 +10,8 @@
 \item{nonDemeDynamics}{ A vector of strings. These are evaluated as equations for the rate of change of state variables that do not correspond to demes. Vector must have names of state variables. }
 \item{t0}{ The time of origin of the process. Should be before root of genealogy. } 
 \item{x0}{ A vector of initial conditions for the demographic process (the state of the system at time t0). Should include the name and value of all variables mentioned in births and nonDemeDynamics. }
-\item{sampleTimes}{A vector of times for each sample. }
-\item{sampleStates}{A vector of states for each sample. Each element gives the index 1..m of the deme from which each sample was taken. }
+\item{sampleTimes}{A vector of times for each sample. The names attribute will match tip.label of the generated tree. }
+\item{sampleStates}{A matrix of states for each sample. There is one row for each sample, and row names should match the names of sampleTimes. Each column gives the probability that the sample is in the deme 1..m at the time of sampling. }
 \item{migrations}{ A vector or matrix of strings. These are evaluated as equations for the number of migrations between demes. Must have rownames and colnames corresponding to the names of demes. Should be omitted if there is only one deme.}
 \item{parms}{A list of parameters that will be accessible to differential equations specified in births, migrations and nonDemeDynamics.}
 \item{fgyResolution}{Determines timestep of ODEs (larger values gives smaller time step)}

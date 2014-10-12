@@ -2,8 +2,8 @@ Package: rcolgem
 Type: Package
 Title: statistical inference and modeling of genealogies generated 
 	by epidemic and ecological processes
-Version: 0.0.3
-Date: 2014-07-23
+Version: 0.0.4
+Date: 2014-10-11
 Author: {Erik M Volz, Oliver Ratmann, Ethan Romero Severson}
 Maintainer: Erik M Volz <erik.volz+rcolgem@gmail.com>
 Depends:
