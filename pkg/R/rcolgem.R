@@ -12,7 +12,7 @@
 #~ 		else: \sum_k pik (1-Ak/Yk)
 #~ DONE validate input & raise warnings
 #~ 	check sampleTimes compatible with edge.length; FGY functions defined over length of tree;
-#~ TODO adapt coalescent simulator to heterochronous sample
+#~ DONE adapt coalescent simulator to heterochronous sample
 #~ TODO add option to switch to semi-structured coalescent if difference in line states below threshold
 
 
@@ -336,6 +336,57 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 	tree$ih <- c()
 	
 	
+	# helper function for updating ancestral node and likelihood terms
+	.update.alpha <- function(u,v, tree, fgy)
+	{
+		.F <- fgy$.F
+		.G <- fgy$.G
+		.Y <- fgy$.Y
+		{
+			.Y <- pmax(A, .Y)
+			FklXpuk_Yk <- (.F * tree$ustates[u,]/.Y)
+			FklXpvk_Yk <- (.F * tree$ustates[v,]/.Y)
+			FklXpuk_Yk[is.nan(FklXpuk_Yk)] <- 0
+			FklXpvk_Yk[is.nan(FklXpvk_Yk)] <- 0
+			vk_Yk <- pmin(pmax(tree$ustates[v,]/.Y, 0),1); vk_Yk[is.nan(vk_Yk)] <- 0
+			uk_Yk <- pmin(pmax(tree$ustates[u,]/.Y, 0),1); uk_Yk[is.nan(uk_Yk)] <- 0
+			ratekl <- FklXpuk_Yk %*% vk_Yk + FklXpvk_Yk %*% uk_Yk
+		}
+		
+		coalescentRate <- max( sum(ratekl) , 0)
+		if (is.nan(L))
+		{
+			L <- (h1 - h0) * sum(ratekl) 
+		}
+		
+		logCoalescentSurvivalProbability <- -L
+		
+		if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
+		# definitions of alpha state
+		p_a <- ratekl / sum(ratekl)
+		
+		list( p_a, logCoalescentSurvivalProbability, coalescentRate) 
+	}
+	
+	.fsc.extantLines <- function(alpha, extantLines, A, tree )
+	{ #	finite size corrections for lines not involved in coalescent
+		p_a     <- tree$lstates[alpha,]
+		p_i_mat <- tree$mstates[extantLines,]
+		A_mat   <- t( matrix( A, nrow=tree$m, ncol=length(extantLines) )  )
+		p_a_mat <- t( matrix(p_a, nrow=tree$m, ncol=length(extantLines)) )
+		rho_mat <- A_mat /  (A_mat - p_i_mat)
+		rterms  <- p_a_mat / (A_mat - p_i_mat)
+		lterms  <- rho_mat %*% p_a
+		lterms <- matrix(lterms, nrow=length(lterms), ncol=tree$m) #
+		new_p_i <- p_i_mat * (lterms - rterms)
+		new_p_i <- new_p_i / rowSums(new_p_i)
+		corrupted <- is.nan(rowSums(new_p_i))
+		new_p_i[corrupted,] <- p_i_mat[corrupted,]
+		tree$mstates[extantLines,] <- new_p_i
+		tree
+	}
+	
+	
 	for (ih in 1:(length(eventTimes)-1)){
 		h0 <- eventTimes[ih]
 		h1 <- eventTimes[ih+1]
@@ -401,7 +452,12 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 			if ( (sum(.Y) < length(extantLines)) & (!forgiveAgtY) ) { L <- Inf }
 			else if ( (sum(.Y) < length(extantLines)) & (length(extantLines)/length(tree$tip.label)) > forgiveAgtY) { L <- Inf }
 #~ if (is.infinite(L)) {print('infinite 3'); browser(); }
-			for (alpha in newNodes){
+			
+			#for (alpha in newNodes){
+			if (length(newNodes)==1)
+			{
+				#TODO should rewrite to use helper functions
+				alpha <- newNodes
 				u <- tree$daughters[alpha,1]
 				v <- tree$daughters[alpha,2]
 				{
@@ -427,15 +483,10 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 				tree$coalescentSurvivalProbability[alpha] <- exp(-L)
 				tree$logCoalescentSurvivalProbability[alpha] <- -L
 				
-#~ if( tree$coalescentSurvivalProbability[alpha]==0) browser()
-				
-				
 				if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 				# definitions of alpha state
-				{ #
-					tree$lstates[alpha,] <- ratekl / sum(ratekl)
-					tree$mstates[alpha,] <- ratekl / sum(ratekl)
-				}
+				tree$lstates[alpha,] <- ratekl / sum(ratekl)
+				tree$mstates[alpha,] <- ratekl / sum(ratekl)
 				
 				# debug
 				tree$A <- rbind( tree$A, A)
@@ -459,6 +510,42 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 					new_p_i[corrupted,] <- p_i_mat[corrupted,]
 					tree$mstates[extantLines,] <- new_p_i
 				}
+			} else{
+				#TODO should check that this is definite polytomy
+				daughters <- setdiff( unique( daughters[newNodes,] ), newNodes)
+				uv_corates <- c()
+				uv_survProbs <- c()
+				uv_alphaStates <- c()
+				for (u_i in 1:length(daughters)) for (v_i in (u_i+1):length(daughters))
+				{
+					u <- daughters[u_i]
+					v <- daughters[v_i]
+					o <- .update.alpha(u, v, tree, fgy) #list( p_a, logCoalescentSurvivalProbability, coalescentRate) 
+					uv_corates <- c( uv_corates, o[[3]] )
+					uv_survProbs <- c( uv_survProbs, exp( o[[2]] ) )
+					uv_alphaStates <- rbind ( uv_alphaStates, o[[1]] )
+				}
+				corate <- mean(uv_corates)
+				S <- mean(uv_survProbs)
+				p_a <- colMeans( uv_alphaStates)
+				p_a <- p_a / sum(p_a) 
+				for (alpha in newNodes)
+				{
+					# debug
+					tree$A <- rbind( tree$A, A)
+					tree$lnS <- c( tree$lnS, -L )
+					tree$lnr <- c( tree$lnr, log(sum(ratekl)) )
+					tree$ih <- c( tree$ih, h1)
+					# update alpha states
+					tree$lstates[alpha,] <- ratekl / sum(ratekl)
+					tree$mstates[alpha,] <- tree$lstates[alpha,]
+					if (edge.lengths[alpha] == 0) tree$ustates[alpha,] <- tree$lstates[alpha,]
+					# likelihood stuff
+					tree$coalescentRates[alpha] <- corate
+					tree$coalescentSurvivalProbability[alpha] <- S
+					tree$logCoalescentSurvivalProbability[alpha] <- log(S)
+				}
+				tree <- .fsc.extantLines(alpha, extantLines, A, tree )
 			}
 			tree
 		}) -> tree
@@ -589,6 +676,95 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 		return(ll)
 }
 
+
+pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes, integrationMethod = 'rk4')
+{
+	sampleStates <- bdt$sampleStates
+	sampleTimes <- bdt$sampleTimes
+	n <- length(sampleTimes)
+	maxSampleTime <- max(sampleTimes)
+	sampleHeights <- maxSampleTime - sampleTimes 
+	ix <- sort(sampleHeights, index.return=TRUE)$ix
+	sortedSampleHeights <- sampleHeights[ix]
+	sortedSampleStates <- sampleStates[ix,]
+	uniqueSortedSampleHeights <- unique(sortedSampleHeights)
+	
+	maxtime <- times[length(times)]
+	mintime <- times[1]
+	maxHeight <- maxSampleTime -  mintime
+	
+	fgyParms <- list()
+	fgyParms$FGY_RESOLUTION		<- length(times)
+	# reverse order (present to past): 
+	fgyParms$F_DISCRETE 			<- lapply(length(births):1, function(k)  births[[k]] )
+	fgyParms$G_DISCRETE 			<- lapply(length(migrations):1, function(k)  migrations[[k]] )
+	fgyParms$Y_DISCRETE 			<- lapply(length(demeSizes):1, function(k)  demeSizes[[k]] )
+	# the following line accounts for any discrepancies between the maximum time axis and the last sample time
+	fgyParms$hoffset = hoffset <- maxtime - bdt$maxSampleTime
+	if (hoffset < 0) stop( 'Time axis does not cover the last sample time' )
+	fgyParms$get.index <- function(h) min(1 + fgyParms$FGY_RESOLUTION * (h + hoffset) / ( maxtime - mintime ), fgyParms$FGY_RESOLUTION )
+	fgyParms$F. 					<- function(h) { fgyParms$F_DISCRETE[[fgyParms$get.index(h)]] } #
+	fgyParms$G. 					<- function(h) { fgyParms$G_DISCRETE[[fgyParms$get.index(h)]] }
+	fgyParms$Y. 					<- function(h) { fgyParms$Y_DISCRETE[[fgyParms$get.index(h)]] }
+	fgyParms$FGY_H_BOUNDARIES 		<- bdt$maxSampleTime - times[length(times):1] 
+
+	F. <- fgyParms$F.; G. <- fgyParms$G.; Y. <- fgyParms$Y. ; 
+	FGY_RESOLUTION <- fgyParms$FGY_RESOLUTION
+	
+	get.fgy <- function(h)
+	{
+			.Y		<- fgyParms$Y.(h)
+			.F		<- fgyParms$F.(h)
+			.G		<- fgyParms$G.(h)
+		list(.F=.F, .G=.G, .Y=.Y)
+	}
+	
+	# construct forcing timeseries for ode's
+	heights <- sort( fgyParms$FGY_H_BOUNDARIES )
+	heights <- heights[heights <= maxHeight]
+	heights <- heights[heights >= 0]
+	fgyParms$heights <- heights
+	fgymat <- t( sapply( fgyParms$heights, function(h) 
+	  with(get.fgy(h), {
+		c( as.vector(.F), as.vector(.G), as.vector(.Y) )
+	  })
+	) )
+	fgymat <- pmax(fgymat, 0)
+	
+	# solve for A
+	cumSortedSampleStates <-  sapply( 1:m, function(k) cumsum(sortedSampleStates[,k]) )
+	cumSortedNotSampledStates <-  t(cumSortedSampleStates[n,] - t(cumSortedSampleStates) )
+	nsy.index <- approxfun( sortedSampleHeights , 1:n , method='constant', rule=2)
+	not.sampled.yet <- function(h)
+	{
+		cumSortedNotSampledStates[ nsy.index(h), ]
+	}
+	nsymat <- t( sapply( fgyParms$heights, function(h) 
+		not.sampled.at.h(h)
+	) )
+	dA <- function(h, A, parms, ...)
+	{
+		nsy <- not.sampled.yet(h) 
+		with(get.fgy(h), 
+		{ 
+			A_Y 	<- (A-nsy) / .Y
+			csFpG 	<- colSums( .F + .G )
+			list( .G %*% A_Y - csFpG * A_Y + (.F %*% A_Y) * pmax(1-A_Y, 0) )
+		})
+	}
+	AIntervals <- c(sortedSampleHeights[2:length(uniqueSortedSampleHeights)], maxHeight)
+	h0 						<- 0
+	sampled.at.h <- function(h) which(sortedSampleHeights==h)
+	extantLines <- sampled.at.h(h0)
+	
+#~ 	AplusNotSampled <- ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = integrationMethod)[, 2:(m+1)]
+	parameters 	<- c(tree$m, tree$maxHeight, length(heights), as.vector(fgymat), as.vector(nsymat))
+	inheights <- bdt$heights[(n+1):length(bdt$heights)]
+	AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc", method=integrationMethod )[2:(1+length(inheights)), 2:(m+1)]
+	# could possibly speed this up by calling c func:
+	dAs <- sapply(1:nrow(AplusNotSampled), function(ih) dA(inheights[ih], AplusNotSampled[ih,] , NA)  ) 
+	sum(log(dAs))
+}
 
 solve.model.unstructured <- function(t0,t1, x0, births,  deaths, nonDemeDynamics, parms, timeResolution=1000, integrationMethod = 'rk4')
 {
@@ -811,7 +987,7 @@ make.fgy <- function(t0, t1, births, deaths, nonDemeDynamics,  x0,  migrations=N
 	Fs <- lapply( nrow(ox):(1+length(times0)), function(i) .birth.matrix(ox[i,], ox[i,1])  ) # dh *
 	Gs <- lapply( nrow(ox):(1+length(times0)), function(i) .migration.matrix(ox[i,], ox[i,1])  ) #dh *
 	
-	list( times, Fs, Gs, Ys , ox )
+	list( rev(times), Fs, Gs, Ys , ox )
 }
 
 coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0, x0,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2, returnTree=FALSE)
@@ -885,15 +1061,20 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 {
 	m <- nrow(births)
 	if (m < 2)  stop('Error: currently only models with at least two demes are supported')
+	maxSampleTime <- max(sampleTimes)
 	tfgy <- make.fgy( t0, maxSampleTime, births, deaths, nonDemeDynamics,  x0,  migrations=migrations,  parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod )
-	
 	#~ 	simulate.binary.dated.tree.fgy(tfgy, sampleTimes, sampleStates,  parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod)
 	simulate.binary.dated.tree.fgy( tfgy[[1]], tfgy[[2]], tfgy[[3]], tfgy[[4]], sampleTimes, sampleStates, integrationMethod = integrationMethod )
 }
 
 simulate.binary.dated.tree.fgy <- function( times, births, migrations, demeSizes, sampleTimes, sampleStates, integrationMethod = 'rk4')
 {
+#NOTE assumes times in equal increments
+#~ TODO mstates, ustates not being set ? 
+s <- round(coef( lm(x ~ y,  data.frame(x = 1:length(times), y = sort(times))) )[1], digits=9)
+if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	n <- length(sampleTimes)
+	m <- ncol(sampleStates)
 	maxSampleTime <- max(sampleTimes)
 	sampleHeights <- maxSampleTime - sampleTimes 
 	ix <- sort(sampleHeights, index.return=TRUE)$ix
@@ -901,16 +1082,18 @@ simulate.binary.dated.tree.fgy <- function( times, births, migrations, demeSizes
 	sortedSampleStates <- sampleStates[ix,]
 	uniqueSortedSampleHeights <- unique(sortedSampleHeights)
 	
-	maxtime <- times[length(times)]
-	mintime <- times[1]
+	maxtime <- max(times)
+	mintime <- min(times)
 	maxHeight <- maxSampleTime -  mintime
+	
+	times_ix <- sort(times, index.return=TRUE, decreasing=TRUE)$ix
 	
 	fgyParms <- list()
 	fgyParms$FGY_RESOLUTION		<- length(times)
 	# reverse order (present to past): 
-	fgyParms$F_DISCRETE 			<- lapply(length(births):1, function(k)  births[[k]] )
-	fgyParms$G_DISCRETE 			<- lapply(length(migrations):1, function(k)  migrations[[k]] )
-	fgyParms$Y_DISCRETE 			<- lapply(length(demeSizes):1, function(k)  demeSizes[[k]] )
+	fgyParms$F_DISCRETE 			<- lapply(times_ix, function(k)  births[[k]] )
+	fgyParms$G_DISCRETE 			<- lapply(times_ix, function(k)  migrations[[k]] )
+	fgyParms$Y_DISCRETE 			<- lapply(times_ix, function(k)  demeSizes[[k]] )
 	# the following line accounts for any discrepancies between the maximum time axis and the last sample time
 	fgyParms$hoffset = hoffset <- maxtime - bdt$maxSampleTime
 	if (hoffset < 0) stop( 'Time axis does not cover the last sample time' )
@@ -918,7 +1101,7 @@ simulate.binary.dated.tree.fgy <- function( times, births, migrations, demeSizes
 	fgyParms$F. 					<- function(h) { fgyParms$F_DISCRETE[[fgyParms$get.index(h)]] } #
 	fgyParms$G. 					<- function(h) { fgyParms$G_DISCRETE[[fgyParms$get.index(h)]] }
 	fgyParms$Y. 					<- function(h) { fgyParms$Y_DISCRETE[[fgyParms$get.index(h)]] }
-	fgyParms$FGY_H_BOUNDARIES 		<- bdt$maxSampleTime - times[length(times):1] 
+	fgyParms$FGY_H_BOUNDARIES 		<- sort( bdt$maxSampleTime - times )
 
 	F. <- fgyParms$F.; G. <- fgyParms$G.; Y. <- fgyParms$Y. ; 
 	FGY_RESOLUTION <- fgyParms$FGY_RESOLUTION
@@ -971,7 +1154,10 @@ simulate.binary.dated.tree.fgy <- function( times, births, migrations, demeSizes
 		{ 
 			A_Y 	<- (A-nsy) / .Y
 			csFpG 	<- colSums( .F + .G )
-			list( .G %*% A_Y - csFpG * A_Y + (.F %*% A_Y) * pmax(1-A_Y, 0) )
+			list( setNames( as.vector(
+			  .G %*% A_Y - csFpG * A_Y + (.F %*% A_Y) * pmax(1-A_Y, 0) 
+			  ), names(A)
+			))
 		})
 	}
 	AIntervals <- c(sortedSampleHeights[2:length(uniqueSortedSampleHeights)], maxHeight)
