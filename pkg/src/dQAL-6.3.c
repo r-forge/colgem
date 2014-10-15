@@ -87,12 +87,12 @@ void dQAL( int *neq, double *t, double *y, double *ydot, double *yout, int*ip)
 			dQ(k,z) = 0.;
 			for (l = 0. ; l < m; l++){
 				if (k!=l){
-					dQ(k,z) += (F(i,k,l) + G(i,k,l)) * Q(l,z)/Y(i,l);
-					dQ(k,z) -= (F(i,l,k) + G(i,l,k)) * Q(k,z)/Y(i,k);
+					dQ(k,z) += (F(i,k,l) + G(i,k,l)) *min(1,  Q(l,z)/Y(i,l));
+					dQ(k,z) -= (F(i,l,k) + G(i,l,k)) * min(1,  Q(k,z)/Y(i,k));
 				}
 				// coalescent:
 				//~ dQ(k,z) -= (F(i,k,l)+F(i,l,k)) * a[l] * Q(k,z)/Y(i,k);
-				dQ(k,z) -= F(i,k,l) * a[l] * Q(k,z)/Y(i,k);
+				dQ(k,z) -= F(i,k,l) * a[l] * min(1, Q(k,z)/Y(i,k));
 			}
 		}
 	}

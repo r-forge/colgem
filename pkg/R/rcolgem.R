@@ -1070,7 +1070,7 @@ simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0,
 simulate.binary.dated.tree.fgy <- function( times, births, migrations, demeSizes, sampleTimes, sampleStates, integrationMethod = 'rk4')
 {
 #NOTE assumes times in equal increments
-#~ TODO mstates, ustates not being set ? 
+#~ TODO mstates, ustates not in returned tree 
 s <- round(coef( lm(x ~ y,  data.frame(x = 1:length(times), y = sort(times))) )[1], digits=9)
 if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	n <- length(sampleTimes)
@@ -1272,13 +1272,12 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 				v_i <- 1 + floor( (uivi-1) / nextant ) #column
 				u <-  extantLines[ u_i ] 
 				v <- extantLines[ v_i ] 
-				
 				ustates[u,] <- mstates[u,]
 				ustates[v,] <- mstates[v,]
 				#lambda_uv  <- as.vector( astates[u_i,] %*% .F %*% astates[v_i,] ) + as.vector( astates[v_i,] %*% .F %*% astates[u_i,] )
 				lambda_uv <- ((astates[u_i,]) %*% t( astates[v_i,] )) * .F + ((astates[v_i,]) %*% t( astates[u_i,] )) * .F 
 				palpha <- rowSums(lambda_uv) / sum(lambda_uv)
-				
+#~ browser()
 				alpha <- lineageCounter 
 				lineageCounter <- lineageCounter + 1
 				extantLines <- c(extantLines[-c(v_i, u_i)], alpha)
@@ -1308,7 +1307,8 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	phylo <- read.tree(text=write.tree(self) )
 	sampleTimes2 <- sampleTimes2[phylo$tip.label];
 	sampleStates2 <- sampleStates2[phylo$tip.label,]; 
-	binaryDatedTree(phylo, sampleTimes2, sampleStates = sampleStates2)
+	bdt <- binaryDatedTree(phylo, sampleTimes2, sampleStates = sampleStates2)
+	bdt
 }
 
 #~ setOldClass("binaryDatedTree")
