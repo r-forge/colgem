@@ -60,31 +60,74 @@ void initfunc_dCA(void (* odeparms)(int *, double *))
 void dCA( int *neq, double *t, double *y, double *ydot, double *yout, int*ip)
 {
 	int i =  (int)min( (int)( hres * (*t) / treeT ), hres-1);
-	int k,l,z,w;
+	//~ if ((*t) < 10)
+	//~ {
+		//~ printf( "Fs %f %f \n", F(i, 3, 0), F(i, 0, 3)); 
+		//~ printf( "Ys %f %f \n", Y(i, 0), Y(i, 1)); 
+		//~ printf( "NSY %f %f \n", notSampledYet(i, 0), notSampledYet(i, 3)); 
+		//~ printf( "t %f  treeT %f hres %f \n", (*t), treeT, hres); 
+	//~ }
+	int k,l;
 	
+	
+	double csFpG[m]; 
+	for (k = 0; k < m; k++)
+	{
+		csFpG[k] = 0.;
+	}
 	double a[m]; //normalized nlft 
-	double sumA = 0.; 
-	for (k = 0; k < m; k++) sumA += A(k);
 	for (k = 0; k < m; k++) { 
 		dA(k) = 0.;
 		if (Y(i,k) > 0) {
-			a[k] =  (A(k)-notSampledYet(i,k)) / Y(i,k);
-			//~ a[k] =  max(0, min(1, r *  A(k)/Y(i,k)));
-			//~ a[k] = max( min(r * A(k)/Y(i,k), 1), 0) ;
+			a[k] =  max(0, (A(k)-notSampledYet(i,k)) / Y(i,k) );
 		} else{
 			a[k] = 1.; //
 		} 
+		for ( l = 0; l < m; l++)
+		{
+			csFpG[l] += G(i, k, l) + F(i, k, l);
+		}
 	}
 	
 	//dA
-	for (k = 0; k < m; k++){
+	/*for (k = 0; k < m; k++){
 		for (l = 0; l < m; l++){
 			if (k==l){
 				dA(k) -= a[l] * (F(i,l,k)) * a[k];
 			} else{
-				dA(k) += ((1 - a[k]) * F(i,k,l) + G(i,k,l)) * a[l] ;
-				dA(k) -= (F(i,l,k) + G(i,l,k)) * a[k];
+				dA(k) += ( F(i,k,l) + G(i,k,l)) * a[l] ; //(1 - a[k]) * ??
+				dA(k) -= ( F(i,l,k) + G(i,l,k)) * a[k]; //TODO 
 			}
 		}
+	}
+	*/
+	
+	if ((*t) < 10)
+	{
+		printf("TIME %f\n", (*t)); 
+		for (k = 0; k < m; k++)
+		{
+			printf("%f %f %f %f %f \n", Y(i, k), notSampledYet(i,k), A(k) , a[k], dA(k));
+		}
+		printf("~~~~~~~~~~~\n");
+		for (k = 0; k < m; k++)
+		{
+			for (l = 0; l < m; l++)
+			{
+				printf("%f ", F(i,k,l) );
+			}
+			printf("\n"); 
+		}
+		printf("~~~~~~~~~~~\n");
+		for (k = 0; k < m; k++)
+		{
+			for (l = 0; l < m; l++)
+			{
+				printf("%f ", G(i,k,l) );
+			}
+			printf("\n"); 
+		}
+		printf("~~~~~~~~~~~\n");
+		printf("~~~~~~~~~~~\n");
 	}
 }

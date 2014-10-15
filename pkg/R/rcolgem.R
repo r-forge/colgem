@@ -637,6 +637,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSizes, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2, returnTree=FALSE)
 {
 # bdt : binaryDatedTree instance
+# note births & migrations should be rates in each time step
 	maxtime <- times[length(times)]
 	mintime <- times[1]
 	if (mintime > (bdt$maxSampleTime - bdt$maxHeight)) {warning('Root of tree occurs before earliest time on time axis'); return(-Inf) }
@@ -679,6 +680,7 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 
 pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes, integrationMethod = 'rk4')
 {
+# note births & migrations should be rates in each time step
 	sampleStates <- bdt$sampleStates
 	sampleTimes <- bdt$sampleTimes
 	n <- length(sampleTimes)
@@ -740,7 +742,7 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 		cumSortedNotSampledStates[ nsy.index(h), ]
 	}
 	nsymat <- t( sapply( fgyParms$heights, function(h) 
-		not.sampled.at.h(h)
+		not.sampled.yet(h)
 	) )
 	dA <- function(h, A, parms, ...)
 	{
@@ -758,11 +760,13 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 	extantLines <- sampled.at.h(h0)
 	
 #~ 	AplusNotSampled <- ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = integrationMethod)[, 2:(m+1)]
-	parameters 	<- c(tree$m, tree$maxHeight, length(heights), as.vector(fgymat), as.vector(nsymat))
-	inheights <- bdt$heights[(n+1):length(bdt$heights)]
-	AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc", method=integrationMethod )[2:(1+length(inheights)), 2:(m+1)]
+	parameters 	<- c(m, maxHeight, length(heights), as.vector(fgymat), as.vector(nsymat))
+	inheights <- sort( bdt$heights[(n+1):length(bdt$heights)] )
+#~ browser()
+	AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method=integrationMethod )[2:(1+length(inheights)), 2:(m+1)]
 	# could possibly speed this up by calling c func:
 	dAs <- sapply(1:nrow(AplusNotSampled), function(ih) dA(inheights[ih], AplusNotSampled[ih,] , NA)  ) 
+browser()
 	sum(log(dAs))
 }
 
