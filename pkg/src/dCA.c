@@ -90,6 +90,16 @@ void dCA( int *neq, double *t, double *y, double *ydot, double *yout, int*ip)
 	}
 	
 	//dA
+	//~ list( .G %*% A_Y - csFpG * A_Y + (.F %*% A_Y) * pmax(1-A_Y, 0) )
+	for (k = 0; k < m; k++){
+		dA(k) -= a[k] * csFpG[k];
+		for (l = 0; l < m; l++){
+			dA(k) += a[l] * G(i,k,l);
+			dA(k) += max(0,(1-a[k])) * F(i,k,l) * a[l];
+		}
+	}
+	
+	
 	/*for (k = 0; k < m; k++){
 		for (l = 0; l < m; l++){
 			if (k==l){
@@ -102,32 +112,32 @@ void dCA( int *neq, double *t, double *y, double *ydot, double *yout, int*ip)
 	}
 	*/
 	
-	if ((*t) < 10)
-	{
-		printf("TIME %f\n", (*t)); 
-		for (k = 0; k < m; k++)
-		{
-			printf("%f %f %f %f %f \n", Y(i, k), notSampledYet(i,k), A(k) , a[k], dA(k));
-		}
-		printf("~~~~~~~~~~~\n");
-		for (k = 0; k < m; k++)
-		{
-			for (l = 0; l < m; l++)
-			{
-				printf("%f ", F(i,k,l) );
-			}
-			printf("\n"); 
-		}
-		printf("~~~~~~~~~~~\n");
-		for (k = 0; k < m; k++)
-		{
-			for (l = 0; l < m; l++)
-			{
-				printf("%f ", G(i,k,l) );
-			}
-			printf("\n"); 
-		}
-		printf("~~~~~~~~~~~\n");
-		printf("~~~~~~~~~~~\n");
-	}
+	//~ if ((*t) < 10)
+	//~ {
+		//~ printf("TIME %f\n", (*t)); 
+		//~ for (k = 0; k < m; k++)
+		//~ {
+			//~ printf("%f %f %f %f %f \n", Y(i, k), notSampledYet(i,k), A(k) , a[k], dA(k));
+		//~ }
+		//~ printf("~~~~~~~~~~~\n");
+		//~ for (k = 0; k < m; k++)
+		//~ {
+			//~ for (l = 0; l < m; l++)
+			//~ {
+				//~ printf("%f ", F(i,k,l) );
+			//~ }
+			//~ printf("\n"); 
+		//~ }
+		//~ printf("~~~~~~~~~~~\n");
+		//~ for (k = 0; k < m; k++)
+		//~ {
+			//~ for (l = 0; l < m; l++)
+			//~ {
+				//~ printf("%f ", G(i,k,l) );
+			//~ }
+			//~ printf("\n"); 
+		//~ }
+		//~ printf("~~~~~~~~~~~\n");
+		//~ printf("~~~~~~~~~~~\n");
+	//~ }
 }

@@ -763,11 +763,11 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 	parameters 	<- c(m, maxHeight, length(heights), as.vector(fgymat), as.vector(nsymat))
 	inheights <- sort( bdt$heights[(n+1):length(bdt$heights)] )
 #~ browser()
-	AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method=integrationMethod )[2:(1+length(inheights)), 2:(m+1)]
+	AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method='adams' )[2:(1+length(inheights)), 2:(m+1)]
 	# could possibly speed this up by calling c func:
-	dAs <- sapply(1:nrow(AplusNotSampled), function(ih) dA(inheights[ih], AplusNotSampled[ih,] , NA)  ) 
-browser()
-	sum(log(dAs))
+	m_dAs <- sapply(1:nrow(AplusNotSampled), function(ih) -sum(dA(inheights[ih], AplusNotSampled[ih,] , NA)[[1]])  ) 
+#~ browser()
+	sum(log(m_dAs))
 }
 
 solve.model.unstructured <- function(t0,t1, x0, births,  deaths, nonDemeDynamics, parms, timeResolution=1000, integrationMethod = 'rk4')
