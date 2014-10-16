@@ -124,6 +124,18 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 	phylo$coalescentRates <- rep(0, (phylo$Nnode + length(phylo$tip.label)))
 	phylo$coalescentSurvivalProbability <- rep(0, (phylo$Nnode + length(phylo$tip.label)))
 	phylo$logCoalescentSurvivalProbability <- rep(-Inf, (phylo$Nnode + length(phylo$tip.label)))
+	
+	# correct any funniness due to very small or negative branch lengths
+	inodes <- (length(phylo$tip.label)+1):length(phylo$heights)
+	while ( any( phylo$heights[inodes] < phylo$heights[ phylo$daughters[inodes,1] ] ) |  any( phylo$heights[inodes] < phylo$heights[ phylo$daughters[inodes,2] ] )  )
+	{
+		phylo$heights[inodes] <- sapply( inodes, function(alpha) max(phylo$heights[alpha], phylo$heights[phylo$daughters[alpha,] ] ) ) 
+	} 
+	#  edge.lengths may have changed- repair them: 
+	for (i in 1:nrow(phylo$edge))
+	{
+		phylo$edge.length[i] <- phylo$heights[phylo$edge[i,1]] - phylo$heights[phylo$edge[i,2]]
+	}
 	class(phylo) <- c("binaryDatedTree", "phylo")
 	return(phylo)
 }
@@ -319,7 +331,6 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 		Q1 		<- t( matrix(  abs(o[nrow(o),2:(1 + tree$m^2)]) , nrow=tree$m) ) #NOTE the transpose
 		A1 <- o[nrow(o), (1 + tree$m^2 + 1):(1 + tree$m^2 +  tree$m)]
 		L1 <- o[nrow(o), ncol(o)]
-#~ if (is.nan(L1)) {print('dQAL'); browser()}
 		return ( list(  unname(Q1), unname(A1),  unname(L1) ) ) #
 	}
 	
@@ -360,10 +371,9 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 		}
 		
 		logCoalescentSurvivalProbability <- -L
-browser()
 		if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 		# definitions of alpha state
-		p_a <- ratekl / sum(ratekl)
+		p_a <- as.vector( ratekl / sum(ratekl) )
 		
 		list( p_a, logCoalescentSurvivalProbability, coalescentRate) 
 	}
@@ -404,7 +414,6 @@ browser()
 		
 		# clean output
 		if (is.nan(L)) {L <- Inf}
-#~ if (is.infinite(L)) {print('infinite 1'); browser(); }
 		if (sum(is.nan(Q)) > 0) Q <- diag(length(A))
 		if (sum(is.nan(A)) > 0) A <- A0
 		
@@ -448,10 +457,8 @@ browser()
 			if (sum(.Y < 0) > 0) {warning('Model returned negative population values', .F, ' ', .G, ' ', .Y); .Y <- pmax(.Y,0)}
 			if (sum(.G < 0) > 0) {warning('Model returned negative population values', .F, ' ', .G, ' ', .Y); .G <- pmax(.G, 0)}
 			if (sum(.F < 0) > 0) {warning('Model returned negative population values', .F, ' ', .G, ' ', .Y); .F <- pmax(.F, 0)}
-#~ if (is.infinite(L)) {print('infinite 2'); browser(); }
 			if ( (sum(.Y) < length(extantLines)) & (!forgiveAgtY) ) { L <- Inf }
 			else if ( (sum(.Y) < length(extantLines)) & (length(extantLines)/length(tree$tip.label)) > forgiveAgtY) { L <- Inf }
-#~ if (is.infinite(L)) {print('infinite 3'); browser(); }
 			
 			#for (alpha in newNodes){
 			if (length(newNodes)==1)
@@ -493,7 +500,6 @@ browser()
 				tree$lnS <- c( tree$lnS, -L )
 				tree$lnr <- c( tree$lnr, log(sum(ratekl)) )
 				tree$ih <- c( tree$ih, h1)
-				
 				# finite size corrections for lines not involved in coalescent
 				{ #
 					p_a     <- tree$lstates[alpha,]
@@ -516,8 +522,8 @@ browser()
 				uv_corates <- c()
 				uv_survProbs <- c()
 				uv_alphaStates <- c()
-browser()
-				for (u_i in 1:length(daughters)) for (v_i in (u_i+1):length(daughters))
+				tree$ustates[daughters,] <- tree$mstates[daughters,]
+				for (u_i in 1:(length(daughters)-1)) for (v_i in (u_i+1):length(daughters))
 				{
 					u <- daughters[u_i]
 					v <- daughters[v_i]
@@ -535,18 +541,21 @@ browser()
 					# debug
 					tree$A <- rbind( tree$A, A)
 					tree$lnS <- c( tree$lnS, -L )
-					tree$lnr <- c( tree$lnr, log(sum(ratekl)) )
+					tree$lnr <- c( tree$lnr, log(corate) )
+if( is.infinite( log(corate) ) ) browser()
 					tree$ih <- c( tree$ih, h1)
 					# update alpha states
-					tree$lstates[alpha,] <- ratekl / sum(ratekl)
+					tree$lstates[alpha,] <- p_a
 					tree$mstates[alpha,] <- tree$lstates[alpha,]
-					if (edge.lengths[alpha] == 0) tree$ustates[alpha,] <- tree$lstates[alpha,]
+					if ((tree$parentheights[alpha]-tree$heights[alpha]) == 0) tree$ustates[alpha,] <- tree$lstates[alpha,]
 					# likelihood stuff
 					tree$coalescentRates[alpha] <- corate
 					tree$coalescentSurvivalProbability[alpha] <- S
 					tree$logCoalescentSurvivalProbability[alpha] <- log(S)
 				}
 				tree <- .fsc.extantLines(alpha, extantLines, A, tree )
+#~ print(c(h0, h1, corate , S)) 
+#~ print(daughters)
 			}
 			tree
 		}) -> tree
