@@ -360,7 +360,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 		}
 		
 		logCoalescentSurvivalProbability <- -L
-		
+browser()
 		if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 		# definitions of alpha state
 		p_a <- ratekl / sum(ratekl)
@@ -512,7 +512,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 				}
 			} else{
 				#TODO should check that this is definite polytomy
-				daughters <- setdiff( unique( daughters[newNodes,] ), newNodes)
+				daughters <- setdiff( unique( tree$daughters[newNodes,] ), newNodes)
 				uv_corates <- c()
 				uv_survProbs <- c()
 				uv_alphaStates <- c()
