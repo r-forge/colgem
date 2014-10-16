@@ -510,12 +510,13 @@ browser()
 					new_p_i[corrupted,] <- p_i_mat[corrupted,]
 					tree$mstates[extantLines,] <- new_p_i
 				}
-			} else{
+			} else if (length(newNodes) > 1){
 				#TODO should check that this is definite polytomy
 				daughters <- setdiff( unique( tree$daughters[newNodes,] ), newNodes)
 				uv_corates <- c()
 				uv_survProbs <- c()
 				uv_alphaStates <- c()
+browser()
 				for (u_i in 1:length(daughters)) for (v_i in (u_i+1):length(daughters))
 				{
 					u <- daughters[u_i]
@@ -670,7 +671,7 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 	ll <- sum( log(tree$coalescentRates[i]) ) + sum( tree$logCoalescentSurvivalProbability[i] )#sum( log(tree$coalescentSurvivalProbability[i]) ) 
 	if (censorAtHeight) { ll<- tree$Nnode *  ll/length(i)}
 	if (is.nan(ll) | is.na(ll) ) ll <- -Inf
-#~ 	ifelse(returnTree, list( ll, tree), ll) #for debugging
+	#~ 	ifelse(returnTree, list( ll, tree), ll) #for debugging
 	if(returnTree)
 		return(list(ll, tree))
 	else
@@ -759,14 +760,12 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 	sampled.at.h <- function(h) which(sortedSampleHeights==h)
 	extantLines <- sampled.at.h(h0)
 	
-#~ 	AplusNotSampled <- ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = integrationMethod)[, 2:(m+1)]
+	#~ 	AplusNotSampled <- ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = integrationMethod)[, 2:(m+1)]
 	parameters 	<- c(m, maxHeight, length(heights), as.vector(fgymat), as.vector(nsymat))
 	inheights <- sort( bdt$heights[(n+1):length(bdt$heights)] )
-#~ browser()
 	AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method='adams' )[2:(1+length(inheights)), 2:(m+1)]
 	# could possibly speed this up by calling c func:
 	m_dAs <- sapply(1:nrow(AplusNotSampled), function(ih) -sum(dA(inheights[ih], AplusNotSampled[ih,] , NA)[[1]])  ) 
-#~ browser()
 	sum(log(m_dAs))
 }
 
