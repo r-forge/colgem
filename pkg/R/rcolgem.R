@@ -491,6 +491,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 				}
 				tree$coalescentSurvivalProbability[alpha] <- exp(-L)
 				tree$logCoalescentSurvivalProbability[alpha] <- -L
+				if (tree$coalescentSurvivalProbability[alpha]==0) {warning('Zero likelihood. Try setting integrationMethod=adams')}
 #~ if (tree$coalescentSurvivalProbability[alpha]==0) browser()
 				if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 				# definitions of alpha state
