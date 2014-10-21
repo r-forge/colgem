@@ -410,8 +410,10 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 		out <- .solve.Q.A.L(h0, h1, A0,  L)
 		Q <- out[[1]]
 		A <- out[[2]]
+#~ print(out)
+#~ if (out[[3]] > 1000) browser()
 		L <- out[[3]]
-		
+
 		# clean output
 		if (is.nan(L)) {L <- Inf}
 		if (sum(is.nan(Q)) > 0) Q <- diag(length(A))
@@ -489,7 +491,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 				}
 				tree$coalescentSurvivalProbability[alpha] <- exp(-L)
 				tree$logCoalescentSurvivalProbability[alpha] <- -L
-				
+#~ if (tree$coalescentSurvivalProbability[alpha]==0) browser()
 				if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 				# definitions of alpha state
 				tree$lstates[alpha,] <- ratekl / sum(ratekl)
@@ -542,7 +544,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 					tree$A <- rbind( tree$A, A)
 					tree$lnS <- c( tree$lnS, -L )
 					tree$lnr <- c( tree$lnr, log(corate) )
-if( is.infinite( log(corate) ) ) browser()
+#~ if( is.infinite( log(corate) ) ) browser()
 					tree$ih <- c( tree$ih, h1)
 					# update alpha states
 					tree$lstates[alpha,] <- p_a
@@ -552,6 +554,7 @@ if( is.infinite( log(corate) ) ) browser()
 					tree$coalescentRates[alpha] <- corate
 					tree$coalescentSurvivalProbability[alpha] <- S
 					tree$logCoalescentSurvivalProbability[alpha] <- log(S)
+#~ if (S==0) browser()
 				}
 				tree <- .fsc.extantLines(alpha, extantLines, A, tree )
 #~ print(c(h0, h1, corate , S)) 
