@@ -1092,6 +1092,13 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	n <- length(sampleTimes)
 	m <- ncol(sampleStates)
 	maxSampleTime <- max(sampleTimes)
+	if (length(names(sampleTimes))==0){
+		sampleNames <- as.character(1:length(sampleTimes))
+		names(sampleTimes) <- sampleNames
+		rownames(sampleStates) <- sampleNames
+	}
+	if (length(rownames(sampleStates))==0) warning('simulate.binaryDatedTree.fgy: sampleStates should have row names')
+	
 	sampleHeights <- maxSampleTime - sampleTimes 
 	ix <- sort(sampleHeights, index.return=TRUE)$ix
 	sortedSampleHeights <- sampleHeights[ix]
@@ -1111,13 +1118,13 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	fgyParms$G_DISCRETE 			<- lapply(times_ix, function(k)  migrations[[k]] )
 	fgyParms$Y_DISCRETE 			<- lapply(times_ix, function(k)  demeSizes[[k]] )
 	# the following line accounts for any discrepancies between the maximum time axis and the last sample time
-	fgyParms$hoffset = hoffset <- maxtime - bdt$maxSampleTime
+	fgyParms$hoffset = hoffset <- maxtime - maxSampleTime
 	if (hoffset < 0) stop( 'Time axis does not cover the last sample time' )
 	fgyParms$get.index <- function(h) min(1 + fgyParms$FGY_RESOLUTION * (h + hoffset) / ( maxtime - mintime ), fgyParms$FGY_RESOLUTION )
 	fgyParms$F. 					<- function(h) { fgyParms$F_DISCRETE[[fgyParms$get.index(h)]] } #
 	fgyParms$G. 					<- function(h) { fgyParms$G_DISCRETE[[fgyParms$get.index(h)]] }
 	fgyParms$Y. 					<- function(h) { fgyParms$Y_DISCRETE[[fgyParms$get.index(h)]] }
-	fgyParms$FGY_H_BOUNDARIES 		<- sort( bdt$maxSampleTime - times )
+	fgyParms$FGY_H_BOUNDARIES 		<- sort( maxSampleTime - times )
 
 	F. <- fgyParms$F.; G. <- fgyParms$G.; Y. <- fgyParms$Y. ; 
 	FGY_RESOLUTION <- fgyParms$FGY_RESOLUTION
@@ -1208,7 +1215,12 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	Nnode <- n-1
 	edge.length 	<- rep(-1, Nnode + n-1) # should not have root edge
 	edge			<- matrix(-1, (Nnode + n-1), 2)
-	tip.label 		<- names(sortedSampleHeights)# as.character( 1:n )
+	if (length(names(sortedSampleHeights))==0)
+	{
+		tip.label 		<- as.character(1:n)
+	} else{
+		tip.label 		<- names(sortedSampleHeights)# as.character( 1:n )
+	}
 	maxSampleTime 	<- max(sampleTimes)
 	heights 		<- rep(0, (Nnode + n) )
 	parentheights 	<- rep(-1, (Nnode + n) )
@@ -1320,6 +1332,7 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	#~ (ideally ape would not care about the edge order, but actually most functions assume a certain order)
 	sampleTimes2 <- sampleTimes[names(sortedSampleHeights)]
 	sampleStates2 <- lstates[1:n,]; rownames(sampleStates2) <- tip.label
+#~ browser()
 	phylo <- read.tree(text=write.tree(self) )
 	sampleTimes2 <- sampleTimes2[phylo$tip.label];
 	sampleStates2 <- sampleStates2[phylo$tip.label,]; 
