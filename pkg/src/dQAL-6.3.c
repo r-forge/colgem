@@ -62,7 +62,7 @@ void dQAL( int *neq, double *t, double *y, double *ydot, double *yout, int*ip)
 	for (k = 0; k < m; k++) { 
 		dA(k) = 0.;
 		if (Y(i,k) > 0) {
-			a[k] = r *  A(k)/Y(i,k);
+			a[k] = r *  A(k)/ Y(i,k);
 			//~ a[k] =  max(0, min(1, r *  A(k)/Y(i,k)));
 			//~ a[k] = max( min(r * A(k)/Y(i,k), 1), 0) ;
 		} else{
@@ -76,7 +76,7 @@ void dQAL( int *neq, double *t, double *y, double *ydot, double *yout, int*ip)
 			if (k==l){
 				dA(k) -= a[l] * (F(i,l,k)) * a[k];
 			} else{
-				dA(k) += ((1 - a[k]) * F(i,k,l) + G(i,k,l)) * a[l] ;
+				dA(k) += ( max(0, (1 - a[k])) * F(i,k,l) + G(i,k,l)) * a[l] ;
 				dA(k) -= (F(i,l,k) + G(i,l,k)) * a[k];
 			}
 		}
@@ -87,12 +87,12 @@ void dQAL( int *neq, double *t, double *y, double *ydot, double *yout, int*ip)
 			dQ(k,z) = 0.;
 			for (l = 0. ; l < m; l++){
 				if (k!=l){
-					dQ(k,z) += (F(i,k,l) + G(i,k,l)) *min(1,  Q(l,z)/Y(i,l));
-					dQ(k,z) -= (F(i,l,k) + G(i,l,k)) * min(1,  Q(k,z)/Y(i,k));
+					dQ(k,z) += (F(i,k,l) + G(i,k,l)) * min(1,  Q(l,z)/ Y(i,l));
+					dQ(k,z) -= (F(i,l,k) + G(i,l,k)) * min(1,  Q(k,z)/ Y(i,k));
 				}
 				// coalescent:
 				//~ dQ(k,z) -= (F(i,k,l)+F(i,l,k)) * a[l] * Q(k,z)/Y(i,k);
-				dQ(k,z) -= F(i,k,l) * a[l] * min(1, Q(k,z)/Y(i,k));
+				dQ(k,z) -= F(i,k,l) * a[l] * min(1, Q(k,z)/ Y(i,k));
 			}
 		}
 	}

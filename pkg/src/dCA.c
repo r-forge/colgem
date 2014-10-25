@@ -79,7 +79,7 @@ void dCA( int *neq, double *t, double *y, double *ydot, double *yout, int*ip)
 	for (k = 0; k < m; k++) { 
 		dA(k) = 0.;
 		if (Y(i,k) > 0) {
-			a[k] =  max(0, (A(k)-notSampledYet(i,k)) / Y(i,k) );
+			a[k] =  max(0, (A(k)-notSampledYet(i,k))) / Y(i,k); //max(1, Y(i,k)) );
 		} else{
 			a[k] = 1.; //
 		} 
