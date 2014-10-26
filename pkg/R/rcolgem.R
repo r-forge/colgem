@@ -692,7 +692,7 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 }
 
 
-pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes, integrationMethod = 'rk4')
+pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes, forgiveAgtY=.2, integrationMethod = 'adams')
 {
 # note births & migrations should be rates in each time step
 	sampleStates <- bdt$sampleStates
@@ -747,6 +747,9 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 	) )
 	fgymat <- pmax(fgymat, 0)
 	
+	inheights <- sort( bdt$heights[(n+1):length(bdt$heights)] )
+	forgiveHeight <- inheights[ max(1, length(inheights) - floor(forgiveAgtY*length(inheights)))]
+	
 	# solve for A
 	cumSortedSampleStates <-  sapply( 1:m, function(k) cumsum(sortedSampleStates[,k]) )
 	cumSortedNotSampledStates <-  t(cumSortedSampleStates[n,] - t(cumSortedSampleStates) )
@@ -763,7 +766,12 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 		nsy <- not.sampled.yet(h) 
 		with(get.fgy(h), 
 		{ 
-			A_Y 	<- (A-nsy) / .Y
+			A_Y <- (A-nsy) / .Y
+			if (h < forgiveHeight){
+				if ( sum(A_Y > 1)>0 ){
+					return(list( rep(0, length(A)) ))
+				}
+			}
 			csFpG 	<- colSums( .F + .G )
 			list( .G %*% A_Y - csFpG * A_Y + (.F %*% A_Y) * pmax(1-A_Y, 0) )
 		})
@@ -775,7 +783,6 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 	
 	#~ 	AplusNotSampled <- ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = integrationMethod)[, 2:(m+1)]
 	parameters 	<- c(m, maxHeight, length(heights), as.vector(fgymat), as.vector(nsymat))
-	inheights <- sort( bdt$heights[(n+1):length(bdt$heights)] )
 	AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method='adams' )[2:(1+length(inheights)), 2:(m+1)]
 	# could possibly speed this up by calling c func:
 	m_dAs <- sapply(1:nrow(AplusNotSampled), function(ih) -sum(dA(inheights[ih], AplusNotSampled[ih,] , NA)[[1]])  ) 
