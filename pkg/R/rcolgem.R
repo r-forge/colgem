@@ -937,6 +937,11 @@ make.fgy <- function(t0, t1, births, deaths, nonDemeDynamics,  x0,  migrations=N
 		   sapply(1:m, function(l)
 		     parse(text=births[k,l])
 		))
+	if (is.na(migrations))
+	{
+		migrations <- matrix('0', nrow=m, ncol=m)
+		colnames(migrations)=rownames(migrations) <- demeNames
+	}
 	pmigrations <- sapply( 1:m, function(k) 
 		   sapply(1:m, function(l)
 		     parse(text=migrations[k,l])
@@ -1083,10 +1088,36 @@ solve.model <- function(t0,t1, x0, births,  deaths, nonDemeDynamics, parms, migr
 simulate.binary.dated.tree <- function(births, deaths, nonDemeDynamics,  t0, x0, sampleTimes, sampleStates,  migrations=NA,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4')
 {
 	m <- nrow(births)
+	if (is.null(m))  stop('Error: currently only models with at least two demes are supported')
 	if (m < 2)  stop('Error: currently only models with at least two demes are supported')
 	maxSampleTime <- max(sampleTimes)
 	tfgy <- make.fgy( t0, maxSampleTime, births, deaths, nonDemeDynamics,  x0,  migrations=migrations,  parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod )
 	#~ 	simulate.binary.dated.tree.fgy(tfgy, sampleTimes, sampleStates,  parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod)
+	simulate.binary.dated.tree.fgy( tfgy[[1]], tfgy[[2]], tfgy[[3]], tfgy[[4]], sampleTimes, sampleStates, integrationMethod = integrationMethod )
+}
+
+simulate.binary.dated.tree.unstructured <- function(births, deaths, nonDemeDynamics,  t0, x0, sampleTimes,  parms=NA, fgyResolution = 2000, integrationMethod = 'rk4')
+{
+	if (!is.vector(births)) stop('Error: use simulate.binary.dated.tree if there is more than one deme')
+	if (length(births)>1) stop('Error: use simulate.binary.dated.tree if there is more than one deme')
+	m <- 1
+	if (length(names(sampleTimes))==0){
+		sampleNames <- as.character(1:length(sampleTimes))
+		names(sampleTimes) <- sampleNames
+	}
+	births2 <- matrix('0', nrow=2, ncol=2)
+	births2[1,1] <- births
+	DEMENAMES <- c( names(births), paste(sep='_', names(births), '0') )
+	colnames(births2) = rownames(births2) <- DEMENAMES 
+	deaths2 <- c(deaths, '0')
+	names(deaths2) <- DEMENAMES
+	sampleStates <- cbind( rep(1, length(sampleTimes)), rep(0, length(sampleTimes)) )
+	colnames(sampleStates) <- DEMENAMES
+	rownames(sampleStates) <- names(sampleTimes)
+	x02 <- c(x0, 1)
+	names(x02) <- c(names(x0), DEMENAMES[2])
+	maxSampleTime <- max(sampleTimes)
+	tfgy <- make.fgy( t0, maxSampleTime, births2, deaths2, nonDemeDynamics,  x02,   parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod )
 	simulate.binary.dated.tree.fgy( tfgy[[1]], tfgy[[2]], tfgy[[3]], tfgy[[4]], sampleTimes, sampleStates, integrationMethod = integrationMethod )
 }
 
@@ -1183,6 +1214,7 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 		with(get.fgy(h), 
 		{ 
 			A_Y 	<- (A-nsy) / .Y
+			A_Y[is.nan(A_Y)] <- 0
 			csFpG 	<- colSums( .F + .G )
 			list( setNames( as.vector(
 			  .G %*% A_Y - csFpG * A_Y + (.F %*% A_Y) * pmax(1-A_Y, 0) 
