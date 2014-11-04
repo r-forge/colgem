@@ -692,7 +692,7 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 }
 
 
-pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes, forgiveAgtY=.2, integrationMethod = 'adams')
+pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes, forgiveAgtY=.2, integrationMethod = 'adams', rescaleTree=FALSE, returnRescaleFactor=FALSE)
 {
 # note births & migrations should be rates in each time step
 	sampleStates <- bdt$sampleStates
@@ -777,16 +777,50 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 		})
 	}
 	AIntervals <- c(sortedSampleHeights[2:length(uniqueSortedSampleHeights)], maxHeight)
-	h0 						<- 0
+	h0 	<- 0
 	sampled.at.h <- function(h) which(sortedSampleHeights==h)
 	extantLines <- sampled.at.h(h0)
 	
 	#~ 	AplusNotSampled <- ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = integrationMethod)[, 2:(m+1)]
 	parameters 	<- c(m, maxHeight, length(heights), as.vector(fgymat), as.vector(nsymat))
-	AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method='adams' )[2:(1+length(inheights)), 2:(m+1)]
 	# could possibly speed this up by calling c func:
-	m_dAs <- sapply(1:nrow(AplusNotSampled), function(ih) -sum(dA(inheights[ih], AplusNotSampled[ih,] , NA)[[1]])  ) 
-	sum(log(m_dAs))
+	if (length(rescaleTree)==2 & is.numeric(rescaleTree) ) {
+		stretch_lb <- rescaleTree[1]
+		stretch_ub <- rescaleTree[2]
+		odeHeights <- seq(min( heights), max(inheights), length.out=2000)
+		dh <- odeHeights[2] - odeHeights[1]
+		AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = odeHeights, func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method=integrationMethod )[, 2:(m+1)]
+		.stretchInternalNodeHeights <- function(inheights, ef ) 
+		{
+			# note : does not check for consistency with sample times
+			#(inheights-min(inheights)) * ef + min(inheights)
+			inheights * ef
+		}
+		objfun <- function(ef){
+			new_inheights <- .stretchInternalNodeHeights(inheights)
+			m_dAs <- sapply(new_inheights, function(h)
+			{
+				ih <- min( length(odeHeights),  1 + floor( h / dh )  )
+				-sum( dA(h, AplusNotSampled[ih,] , NA )[[1]] )  
+			})
+			return( sum(log(m_dAs)) )
+		}
+		efoptimise <- optimise(f = objfun, interval = rescaleTree, lower = min(interval),
+			  upper = max(interval), maximum = TRUE,
+			  tol = .Machine$double.eps^0.25)
+		if (returnRescaleFactor){
+			return(efoptimise) 
+		} else{
+			return( efoptimise$objective )
+		}
+		
+	} else if (!rescaleTree) {
+		AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method='adams' )[2:(1+length(inheights)), 2:(m+1)]
+		m_dAs <- sapply(1:nrow(AplusNotSampled), function(ih) -sum(dA(inheights[ih], AplusNotSampled[ih,] , NA)[[1]])  ) 
+		return( sum(log(m_dAs)) )
+	} else{
+		stop('pseudoLogLikelihood0.fgy : rescaleTree must be FALSE or a 2-vector with scaling limits')
+	}
 }
 
 solve.model.unstructured <- function(t0,t1, x0, births,  deaths, nonDemeDynamics, parms, timeResolution=1000, integrationMethod = 'rk4')
