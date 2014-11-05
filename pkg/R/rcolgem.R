@@ -692,9 +692,10 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 }
 
 
-pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes, forgiveAgtY=.2, integrationMethod = 'adams', rescaleTree=FALSE, returnRescaleFactor=FALSE)
+pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes, forgiveAgtY=.2, integrationMethod = 'adams', rescaleTree=FALSE, returnRescaleFactor=FALSE, ks_objfun = FALSE)
 {
 # note births & migrations should be rates in each time step
+#~ ks_obfjun : if TRUE, returns -KS statistic (NLFT and node heights)
 	sampleStates <- bdt$sampleStates
 	sampleTimes <- bdt$sampleTimes
 	n <- length(sampleTimes)
@@ -787,7 +788,7 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 	if (length(rescaleTree)==2 & is.numeric(rescaleTree) ) {
 		stretch_lb <- rescaleTree[1]
 		stretch_ub <- rescaleTree[2]
-		odeHeights <- seq(min( heights), max(inheights), length.out=2000)
+		odeHeights <- seq(0, max(inheights), length.out=2000)
 		dh <- odeHeights[2] - odeHeights[1]
 		AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = odeHeights, func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method=integrationMethod )[, 2:(m+1)]
 		.stretchInternalNodeHeights <- function(inheights, ef ) 
@@ -797,7 +798,7 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 			inheights * ef
 		}
 		objfun <- function(ef){
-			new_inheights <- .stretchInternalNodeHeights(inheights)
+			new_inheights <- .stretchInternalNodeHeights(inheights, ef)
 			m_dAs <- sapply(new_inheights, function(h)
 			{
 				ih <- min( length(odeHeights),  1 + floor( h / dh )  )
@@ -805,19 +806,48 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 			})
 			return( sum(log(m_dAs)) )
 		}
-		efoptimise <- optimise(f = objfun, interval = rescaleTree, lower = min(interval),
-			  upper = max(interval), maximum = TRUE,
-			  tol = .Machine$double.eps^0.25)
-		if (returnRescaleFactor){
-			return(efoptimise) 
-		} else{
-			return( efoptimise$objective )
+		rsApNS <- rowSums( AplusNotSampled )
+		# CDF of node heights: 
+		pCo <- approxfun( odeHeights, (rsApNS[1] - rsApNS) / (rsApNS[1] - rsApNS[length(rsApNS)] ),  rule =2 )
+		objfun.ks <- function(ef=1){
+			new_inheights <- .stretchInternalNodeHeights(inheights, ef)
+			return( ks.test(x = new_inheights, y = pCo)$statistic )
 		}
-		
+		# minimise KS statistic: 
+		efoptimise <- optimise(f = objfun.ks, interval = rescaleTree
+		  , maximum = FALSE
+		  , tol = .Machine$double.eps^0.25)
+		if (returnRescaleFactor){
+			if (ks_objfun){
+				return( list( -efoptimise$objective , efoptimise$minimum ) )
+			} else{
+				return( list( objfun(efoptimise$minimum) , efoptimise$minimum ) )
+			}
+			
+		} else{
+			if (ks_objfun){
+				return( -efoptimise$objective  )
+			} else{
+				return(objfun(efoptimise$minimum) )
+			}
+		}
 	} else if (!rescaleTree) {
-		AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method='adams' )[2:(1+length(inheights)), 2:(m+1)]
-		m_dAs <- sapply(1:nrow(AplusNotSampled), function(ih) -sum(dA(inheights[ih], AplusNotSampled[ih,] , NA)[[1]])  ) 
-		return( sum(log(m_dAs)) )
+		if (ks_objfun){
+			odeHeights <- seq(0, max(inheights), length.out=2000)
+			dh <- odeHeights[2] - odeHeights[1]
+			AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = odeHeights, func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method=integrationMethod )[, 2:(m+1)]
+			rsApNS <- rowSums( AplusNotSampled )
+			# CDF of node heights: 
+			pCo <- approxfun( odeHeights, (rsApNS[1] - rsApNS) / (rsApNS[1] - rsApNS[length(rsApNS)] ),  rule =2 )
+#~ plot( inheights, 1:length(inheights) / length(inheights) )
+#~ lines( odeHeights, pCo(odeHeights), col='red')
+#~ browser()
+			return( -ks.test(x = inheights, y = pCo)$statistic )
+		} else{
+			AplusNotSampled <- ode(y=colSums(sortedSampleStates), times = c(0,inheights), func = "dCA", parms = parameters, dllname = "rcolgem", initfunc = "initfunc_dCA", method='adams' )[2:(1+length(inheights)), 2:(m+1)]
+			m_dAs <- sapply(1:nrow(AplusNotSampled), function(ih) -sum(dA(inheights[ih], AplusNotSampled[ih,] , NA)[[1]])  ) 
+			return( sum(log(m_dAs)) )
+		}
 	} else{
 		stop('pseudoLogLikelihood0.fgy : rescaleTree must be FALSE or a 2-vector with scaling limits')
 	}
