@@ -136,6 +136,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 	{
 		phylo$edge.length[i] <- phylo$heights[phylo$edge[i,1]] - phylo$heights[phylo$edge[i,2]]
 	}
+	phylo$n <- length(phylo$tip.label)
 	class(phylo) <- c("binaryDatedTree", "phylo")
 	return(phylo)
 }
@@ -146,6 +147,24 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 	return( which( tree$heights <= h & tree$parentheights > h)  )
 }
 
+rescale.binaryDatedTree <- function(bdt, ef)
+{
+#~ bdt : a binaryDatedTree
+#~ ef : numeric factory by which node heights are altered 
+#~ returns a new binaryDatedTree instance
+	ini  <- (bdt$n+1):(length(bdt$heights))
+	bdt$heights[ini] <- ef * bdt$heights[ini]
+	while( sum(bdt$heights[bdt$daughters[ini,2] ] > bdt$heights[ini] ) > 0 | sum(bdt$heights[bdt$daughters[ini,1] ] >   bdt$heights[ini] ) > 0){
+		bdt$heights[ini] <- pmax(bdt$heights[bdt$daughters[ini,1] ],   bdt$heights[ini] )
+		bdt$heights[ini] <- pmax(bdt$heights[bdt$daughters[ini,2] ],   bdt$heights[ini] )
+	}
+	
+	for (i in 1:nrow(bdt$edge))
+	{
+		bdt$edge.length[i] <- bdt$heights[bdt$edge[i,1]] - bdt$heights[bdt$edge[i,2]]
+	}
+	bdt	
+}
 
 ##########################
 #CALCULATE INTERNAL STATES
