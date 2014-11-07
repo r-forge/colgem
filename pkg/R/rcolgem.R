@@ -773,7 +773,11 @@ pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes,
 	# solve for A
 	cumSortedSampleStates <-  sapply( 1:m, function(k) cumsum(sortedSampleStates[,k]) )
 	cumSortedNotSampledStates <-  t(cumSortedSampleStates[n,] - t(cumSortedSampleStates) )
-	nsy.index <- approxfun( sortedSampleHeights , 1:n , method='constant', rule=2)
+	#nsy.index <- approxfun( sortedSampleHeights , 1:n , method='constant', rule=2)
+	nsy.index <-  approxfun(
+	   sort( jitter( sortedSampleHeights
+	     , factor=max(1e-6, sortedSampleHeights[length(sortedSampleHeights)]/1e6)) )
+	   , 1:n , method='constant', rule=2)
 	not.sampled.yet <- function(h)
 	{
 		cumSortedNotSampledStates[ nsy.index(h), ]
@@ -1286,7 +1290,11 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	# solve for A
 	cumSortedSampleStates <-  sapply( 1:m, function(k) cumsum(sortedSampleStates[,k]) )
 	cumSortedNotSampledStates <-  t(cumSortedSampleStates[n,] - t(cumSortedSampleStates) )
-	nsy.index <- approxfun( sortedSampleHeights , 1:n , method='constant', rule=2)
+	#nsy.index <- approxfun( sortedSampleHeights , 1:n , method='constant', rule=2)
+	nsy.index <-  approxfun(
+	   sort( jitter( sortedSampleHeights
+	     , factor=max(1e-6, sortedSampleHeights[length(sortedSampleHeights)]/1e6)) )
+	   , 1:n , method='constant', rule=2)
 	not.sampled.yet <- function(h)
 	{
 		cumSortedNotSampledStates[ nsy.index(h), ]
@@ -1834,7 +1842,11 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	# solve for A
 	cumSortedSampleStates <-  sapply( 1:m, function(k) cumsum(sortedSampleStates[,k]) )
 	cumSortedNotSampledStates <-  t(cumSortedSampleStates[n,] - t(cumSortedSampleStates) )
-	nsy.index <- approxfun( sortedSampleHeights , 1:n , method='constant', rule=2)
+	#nsy.index <- approxfun( sortedSampleHeights , 1:n , method='constant', rule=2)
+	nsy.index <-  approxfun(
+	   sort( jitter( sortedSampleHeights
+	     , factor=max(1e-6, sortedSampleHeights[length(sortedSampleHeights)]/1e6)) )
+	   , 1:n , method='constant', rule=2)
 	not.sampled.yet <- function(h)
 	{
 		cumSortedNotSampledStates[ nsy.index(h), ]
