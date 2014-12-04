@@ -1034,8 +1034,12 @@ make.fgy <- function(t0, t1, births, deaths, nonDemeDynamics,  x0,  migrations=N
 		     parse(text=migrations[k,l])
 		))
 	pdeaths <- sapply(1:m, function(k) parse(text=deaths[k]) )
-	pndd <- ifelse(mm>0, sapply(1:mm, function(k) parse(text=nonDemeDynamics[k]) ), NA )
-	
+	if (mm > 0) {
+		pndd <- sapply(1:mm, function(k) parse(text=nonDemeDynamics[k]) )
+	} else {
+		pndd <- NA
+	}
+
 	.birth.matrix <- function( x, t) 
 	{
 		with(as.list(x), 
