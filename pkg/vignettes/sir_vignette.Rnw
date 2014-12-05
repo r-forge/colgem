@@ -177,7 +177,6 @@ I0 <- exp(coef(fit)['lnI0'])
 parms <- parms_truth
 parms$beta <- beta
 x0 <- c(I=unname(I0), S = unname(parms$S0) )
-#TODO broken
 
 o <- solve.model.unstructured(t0,bdt$maxSampleTime, x0
    , births
