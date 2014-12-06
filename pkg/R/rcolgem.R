@@ -1758,7 +1758,7 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	sampleHeights <- maxSampleTime - sampleTimes 
 	ix <- sort(sampleHeights, index.return=TRUE)$ix
 	sortedSampleHeights <- sampleHeights[ix]
-	sortedSampleStates <- sampleStates[ix,]
+	sortedSampleStates <- as.matrix(sampleStates[ix,])
 	uniqueSortedSampleHeights <- unique(sortedSampleHeights)
 	
 	maxtime <- max(times)
