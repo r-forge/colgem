@@ -1297,7 +1297,9 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	sampled.at.h <- function(h) which(sortedSampleHeights==h)
 	
 	haxis <- seq(0, maxHeight, length.out=fgyParms$FGY_RESOLUTION)
-	AplusNotSampled <- ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = integrationMethod)[, 2:(m+1)]
+	odA <-  ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = 'adams')
+	haxis <- odA[,1]
+	AplusNotSampled <- odA[, 2:(m+1)]
 	AplusNotSampled <- as.matrix(AplusNotSampled, nrows=length(haxis))
 	Amono <- rowSums( AplusNotSampled)
 	Amono[is.na(Amono)] <- min(Amono[!is.na(Amono)] )
@@ -1375,7 +1377,8 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 		
 		# clean output
 		if (is.nan(L)) {L <- Inf}
-		if (sum(is.nan(Q)) > 0) browser() #Q <- diag(length(A))
+#~ 		if (sum(is.nan(Q)) > 0) browser() #Q <- diag(length(A))
+		if (sum(is.nan(Q)) > 0) Q <- diag(length(A))
 		if (sum(is.nan(A)) > 0) A <- A0
 		
 		#update mstates
@@ -1742,10 +1745,12 @@ simulate.binary.dated.tree.2 <- function(births, deaths, nonDemeDynamics,  t0, x
 
 simulate.binary.dated.tree.fgy.2 <- function( times, births, migrations, demeSizes, sampleTimes, sampleStates, integrationMethod = 'rk4')
 {
+#~ models pik on interior of tree
 #NOTE assumes times in equal increments
 #~ TODO mstates, ustates not in returned tree 
 s <- round(coef( lm(x ~ y,  data.frame(x = 1:length(times), y = sort(times))) )[1], digits=9)
 if (s!=1) warning('Tree simulator assumes times given in equal increments')
+#~  TODO validate inputs, check for NaNs
 	n <- length(sampleTimes)
 	m <- ncol(sampleStates)
 	maxSampleTime <- max(sampleTimes)
@@ -1849,7 +1854,9 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 	sampled.at.h <- function(h) which(sortedSampleHeights==h)
 	extantLines <- sampled.at.h(h0)
 	haxis <- seq(0, maxHeight, length.out=fgyParms$FGY_RESOLUTION)
-	AplusNotSampled <- ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = integrationMethod)[, 2:(m+1)]
+	odA <- ode( y = colSums(sortedSampleStates), times = haxis, func=dA, parms=NA, method = 'adams')
+	haxis <- odA[,1]
+	AplusNotSampled <- odA[, 2:(m+1)]
 	Amono <- rowSums( AplusNotSampled)
 	Amono[is.na(Amono)] <- min(Amono[!is.na(Amono)] )
 	Amono <- Amono - min(Amono)
