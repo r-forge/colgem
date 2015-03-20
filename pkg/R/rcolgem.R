@@ -648,7 +648,12 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 # note births & migrations should be rates in each time step
 	maxtime <- times[length(times)]
 	mintime <- times[1]
-	if (mintime > (bdt$maxSampleTime - bdt$maxHeight)) {warning('Root of tree occurs before earliest time on time axis'); return(-Inf) }
+	if (!censorAtHeight & (mintime > (bdt$maxSampleTime - bdt$maxHeight))) {
+		warning('Root of tree occurs before earliest time on time axis'); return(-Inf) 
+	} 
+	if (censorAtHeight & (mintime > (bdt$maxSampleTime - censorAtHeight)) ) {
+		warning('Root of tree occurs before earliest time on time axis'); return(-Inf) 
+	}
 	fgyParms <- list()
 	fgyParms$FGY_RESOLUTION		<- length(times)
 	fgyParms$maxHeight				<- bdt$maxHeight #
@@ -1089,7 +1094,12 @@ coalescent.log.likelihood <- function( bdt, births, deaths, nonDemeDynamics,  t0
 	if (is.vector( births)) return(coalescent.log.likelihood.unstructuredModel(
 	   bdt, births,  deaths, nonDemeDynamics,  t0, x0, parms=parms, fgyResolution = fgyResolution, integrationMethod = integrationMethod,  censorAtHeight=censorAtHeight, forgiveAgtY=forgiveAgtY) )
 	if (is.na(t0)) t0 <- bdt$maxSampleTime - bdt$maxHeight
-	if ( (bdt$maxSampleTime - bdt$maxHeight) < t0)  {warning('Root of tree occurs before earliest time on time axis'); return(-Inf) }
+	if (!censorAtHeight & (mintime > (bdt$maxSampleTime - bdt$maxHeight))) {
+		warning('Root of tree occurs before earliest time on time axis'); return(-Inf) 
+	} 
+	if (censorAtHeight & (mintime > (bdt$maxSampleTime - censorAtHeight)) ) {
+		warning('Root of tree occurs before earliest time on time axis'); return(-Inf) 
+	}
 	demeNames <- rownames(births)
 	m <- nrow(births)
 	nonDemeNames <- names(nonDemeDynamics)
