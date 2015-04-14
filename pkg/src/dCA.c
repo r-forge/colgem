@@ -45,6 +45,8 @@ void initfunc_dCA(void (* odeparms)(int *, double *))
 /* derivatives */
 #define A(k) y[k]
 #define dA(k) ydot[k]
+#define dLambda ydot[m]
+#define Lambda y[m] 
 
 //~ R version: 
 	//~ dA <- function(h, A, parms, ...)
@@ -96,8 +98,10 @@ void dCA( int *neq, double *t, double *y, double *ydot, double *yout, int*ip)
 		for (l = 0; l < m; l++){
 			dA(k) += a[l] * G(i,k,l);
 			dA(k) += max(0,(1-a[k])) * F(i,k,l) * a[l];
+			dLambda += F(i,k,l) * a[k] * a[l]; //note- would be a little more accurate to have (A-1)/(Y-1) if k==l
 		}
 	}
+	
 	
 	
 	/*for (k = 0; k < m; k++){
