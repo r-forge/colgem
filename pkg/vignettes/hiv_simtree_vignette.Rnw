@@ -197,7 +197,7 @@ x0 <- c(S = 999, I0 = 1, I1 =.1, I2 = .1)
 Note that the first stage of infection has a much higher transmission rate than subsequent stages. 
 
 We can easily visualise the model: 
-<<fig=TRUE,echo=FALSE>>=
+<<fig=TRUE,echo=TRUE>>=
 show.demographic.process(demo.model, theta, x0, t0, t1)
 @
 Additional graphical parameters may be passed to matplot. 
