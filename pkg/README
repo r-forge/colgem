@@ -2,6 +2,4 @@
 
 1. Installation
 -----------------------------------------------------------------------
-R CMD build pkg
-R CMD INSTALL rcolgem_0.0.2.tar.gz
-
+R CMD INSTALL pkg
