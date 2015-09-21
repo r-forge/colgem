@@ -10,7 +10,7 @@ require(inline)
 
 #' Generate a demographic model from input strings, optionally compiling as Cpp using Rcpp and optionally solving as SDEs
 # should return func(theta,  t0, t1, res=1e3) -> list(times, F, G, Y)
-build.demographic.process <- function( births,  nonDemeDynamics,  migrations=NA, deaths=NA,  parameterNames = c(), rcpp = TRUE, sde=FALSE)
+build.demographic.process <- function( births,  nonDemeDynamics=NA,  migrations=NA, deaths=NA,  parameterNames = c(), rcpp = TRUE, sde=FALSE)
 {
 	if (is.vector(births)){
 		births <- matrix( c( births, '0', '0', '0'), nrow = 2, ncol = 2)
