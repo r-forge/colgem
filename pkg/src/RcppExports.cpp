@@ -43,3 +43,19 @@ BEGIN_RCPP
 END_RCPP
 }
 
+// updateWCpp
+NumericMatrix updateWCpp(NumericMatrix W, NumericVector psi_a, IntegerVector utips, IntegerVector vtips, IntegerVector utips_Wcoords, IntegerVector vtips_Wcoords);
+RcppExport SEXP sourceCpp_0_updateWCpp(SEXP WSEXP, SEXP psi_aSEXP, SEXP utipsSEXP, SEXP vtipsSEXP, SEXP utips_WcoordsSEXP, SEXP vtips_WcoordsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< NumericMatrix >::type W(WSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type psi_a(psi_aSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type utips(utipsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type vtips(vtipsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type utips_Wcoords(utips_WcoordsSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type vtips_Wcoords(vtips_WcoordsSEXP);
+    __result = Rcpp::wrap(updateWCpp(W, psi_a, utips, vtips, utips_Wcoords, vtips_Wcoords));
+    return __result;
+END_RCPP
+}

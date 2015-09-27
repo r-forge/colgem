@@ -27,4 +27,19 @@ simulateTreeCpp2 <- function(times
 		 , finiteSizeCorrection)
 }
 
-
+updateWCpp <- function( W
+  , psi_a 
+  , utips
+  , vtips
+  , utipsW
+  , vtipsW )
+{
+	.Call( 'sourceCpp_0_updateWCpp', PACKAGE='rcolgem'
+	  , W
+	  , psi_a 
+	  , utips
+	  , vtips
+	  , utipsW
+	  , vtipsW
+	)
+}
