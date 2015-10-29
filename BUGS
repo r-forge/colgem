@@ -1,0 +1,5 @@
+Occasional error when simulating trees: 
+> source('testSD0-exponNe0.R' ) 
+Error in eval(expr, envir, enclos) : Not enough positive probabilities
+
+Error seems to occur with small Ne and widely dispersed sample times. Perhaps queuing coalescent when only one lineage extant.
