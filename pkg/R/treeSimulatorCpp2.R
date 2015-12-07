@@ -3,7 +3,6 @@ require(Rcpp)
 require(inline)
 #~ sourceCpp('treeSimulatorCpp2.cpp')
 #~ sourceCpp( 'dAL0.cpp') 
-#~ sourceCpp( 'treeSimulatorCpp2.cpp') 
 
 
 
@@ -506,14 +505,17 @@ DatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnota
 	if (is.null(names(sampleTimes))) stop('sampleTimes vector must have names of tip labels')
 	if (is.null(sampleStates) & !is.null(sampleStatesAnnotations) ) sampleStates <- .infer.sample.states.from.annotation(phylo, sampleStatesAnnotations)
 	if (is.null(sampleStates) & is.null(sampleStatesAnnotations)) { sampleStates <- t(t( rep(1, length(phylo$tip.label)))) ; rownames( sampleStates) <- phylo$tip.label }
+	if (is.null( rownames( sampleStates)))  rownames(sampleStates ) <- phylo$tip.label
 	if (any(is.na(rownames(sampleStates)))) stop('sampleStates matrix must have row names of tip labels')
 	if (!any(is.na(sampleStates))) if (!is.matrix( sampleStates)) stop('sampleStates must be a matrix (not a data.frame)')
+	
 	
 	phylo$sampleTimes <- sampleTimes[phylo$tip.label]
 	phylo$sampleStates <- sampleStates[phylo$tip.label, ]
 	if (is.vector(phylo$sampleStates)) phylo$sampleStates <- t(t( phylo$sampleStates))
 	
 	phylo$n = n <- length(sampleTimes)
+	Nnode <- phylo$Nnode
 	
 	# compute heights, ensure consistency of sample times and branch lengths
 	phylo$maxSampleTime   <- max(phylo$sampleTimes)
@@ -543,6 +545,11 @@ DatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnota
 	}
 	phylo$heights <- heights
 	phylo$maxHeight <- max(phylo$heights)
+	phylo$parentheights <- sapply( 1:(n+Nnode), function(u){
+		i <- which( phylo$edge[,2]== u)
+		if (length(i)!=1) return( NA )
+		phylo$heights[ phylo$edge[i,1] ]
+	})
 	
 	# parents and daughters 
 	phylo$parent = phylo$parents <- sapply(1:(phylo$n+phylo$Nnode), function(u) {
@@ -703,7 +710,8 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, res = 1e3, step_si
 		o$Nnode <- o$Nnode + 1
 	}
 #~ 	tryCatch({
-		return(  DatedTree( read.tree(text=write.tree(o)) , sortedSampleTimes) )
+		rownames(sortedSampleStates) <- names(sortedSampleTimes )
+		return(  DatedTree( read.tree(text=write.tree(o)) , sortedSampleTimes, sortedSampleStates) )
 #~ 	}, error = function(e) browser())
 }
 

@@ -15,7 +15,7 @@
 #~ DONE adapt coalescent simulator to heterochronous sample
 #~ TODO add option to switch to semi-structured coalescent if difference in line states below threshold
 
-
+require(Rcpp)
 
 #' @export
 SIMULATIONTIMERESOLUTION<- 1e+04
@@ -250,9 +250,6 @@ rescale.binaryDatedTree <- function(bdt, ef)
 			
 			S <- exp(-L)
 			
-			#TODO option to return -Inf in this situation: 
-			#tryCatch( { if (sum(.Y) < length(extantLines) ) {S <- 0; } }, error = function(e) browser() )
-			#print(paste(sum(.Y),length(extantLines)));
 			
 			for (alpha in newNodes){
 				X1 <- A0 / .Y
@@ -280,14 +277,6 @@ rescale.binaryDatedTree <- function(bdt, ef)
 	F. <- fgyParms$F.; G. <- fgyParms$G.; Y. <- fgyParms$Y. ; 
 	FGY_RESOLUTION <- fgyParms$FGY_RESOLUTION
 	
-#~ 	get.fgy <- function(h)
-#~ 	{
-#~ 			FGY_INDEX <- min( 1+floor( FGY_RESOLUTION * h / tree$maxHeight ), FGY_RESOLUTION)
-#~ 			.Y		<- fgyParms$Y.(FGY_INDEX)
-#~ 			.F		<- fgyParms$F.(FGY_INDEX)
-#~ 			.G		<- fgyParms$G.(FGY_INDEX)
-#~ 		list(.F=.F, .G=.G, .Y=.Y)
-#~ 	}
 	get.fgy <- function(h)
 	{
 			.Y		<- fgyParms$Y.(h)
@@ -296,9 +285,16 @@ rescale.binaryDatedTree <- function(bdt, ef)
 		list(.F=.F, .G=.G, .Y=.Y)
 	}
 	
+	if (is.null(tree$m)) tree$m <- nrow( fgyParms$F_DISCRETE[[1]] )
+	if (is.null( tree$lstates)) {
+		tree$lstates <- matrix(0, nrow = tree$n + tree$Nnode, ncol = tree$m)
+		tree$lstates[1:n, ] <- tree$sampleStates
+	}
+	if (is.null( tree$mstates)) tree$mstates <- tree$lstates
+	if (is.null( tree$ustates)) tree$ustates <- matrix(0, nrow = tree$n + tree$Nnode, ncol = tree$m)
+	
 	
 	# construct forcing timeseries for ode's
-#~ 	times <- fgyParms$FGY_H_BOUNDARIES
 	heights <- sort( fgyParms$FGY_H_BOUNDARIES )
 	heights <- heights[heights <= tree$maxHeight]
 	heights <- heights[heights >= 0]
@@ -307,12 +303,6 @@ rescale.binaryDatedTree <- function(bdt, ef)
 		c( as.vector(.F), as.vector(.G), as.vector(.Y) )
 	  })
 	) )
-#~ 	fgymat <- t( sapply( 1:FGY_RESOLUTION, function(i) 
-#~ 	  c( as.vector(fgyParms$F_DISCRETE[[i]]) , 
-#~ 	    as.vector( fgyParms$G_DISCRETE[[i]] ), 
-#~ 	    fgyParms$Y_DISCRETE[[i]]) ) 
-#~ 	)
-#~ browser()
 	fgymat <- pmax(fgymat, 0)
 
 	.solve.Q.A.L <- function(h0, h1, A0, L0)
@@ -343,7 +333,7 @@ rescale.binaryDatedTree <- function(bdt, ef)
 	
 	# helper function for updating ancestral node and likelihood terms
 	.update.alpha <- function(u,v, tree, fgy)
-	{
+	{ #CPP
 		.F <- fgy$.F
 		.G <- fgy$.G
 		.Y <- fgy$.Y
@@ -374,6 +364,7 @@ rescale.binaryDatedTree <- function(bdt, ef)
 	
 	.fsc.extantLines <- function(alpha, extantLines, A, tree )
 	{ #	finite size corrections for lines not involved in coalescent
+	#CPP 
 		p_a     <- tree$lstates[alpha,]
 		p_i_mat <- tree$mstates[extantLines,]
 		A_mat   <- t( matrix( A, nrow=tree$m, ncol=length(extantLines) )  )
@@ -397,15 +388,13 @@ rescale.binaryDatedTree <- function(bdt, ef)
 		fgy <- get.fgy(h1)
 		
 		#get A0, process new samples, calculate state of new lines
-		extantLines <- .extant.at.height(h0, tree)
+		extantLines <- .extant.at.height(h0, tree) #TODO would be faster to compute on fly
 		if (length(extantLines) > 1 ){
-			A0 <- colSums(tree$mstates[extantLines,])
+			A0 <- colSums(tree$mstates[extantLines,]) 
 		} else if (length(extantLines)==1){ A0 <- tree$mstates[extantLines,] }
 		out <- .solve.Q.A.L(h0, h1, A0,  L)
 		Q <- out[[1]]
 		A <- out[[2]]
-#~ print(out)
-#~ if (out[[3]] > 1000) browser()
 		L <- out[[3]]
 
 		# clean output
@@ -413,13 +402,14 @@ rescale.binaryDatedTree <- function(bdt, ef)
 		if (sum(is.nan(Q)) > 0) Q <- diag(length(A))
 		if (sum(is.nan(A)) > 0) A <- A0
 		
-		#update mstates
+		#update mstates 
+		#CPP
 		if (length(extantLines) > 1)
 		{
-			tree$mstates[extantLines,] <- t( t(Q) %*% t(tree$mstates[extantLines,])  )
-			tree$mstates[extantLines,] <- abs(tree$mstates[extantLines,]) / rowSums(abs(tree$mstates[extantLines,]))
-			#recalculate A
-			A <- colSums(tree$mstates[extantLines,])
+			nms <- t(update_mstates_arma( extantLines, t(Q), t(tree$mstates) ))
+			tree$mstates <- nms
+			# NOTE will have slightly different results if recomputing A here, influences fcs: 
+			#A <- colSums(tree$mstates[extantLines,])
 		}
 		else{
 			tree$mstates[extantLines,] <- t( t(Q) %*% tree$mstates[extantLines,] )
@@ -427,7 +417,6 @@ rescale.binaryDatedTree <- function(bdt, ef)
 			#recalculate A
 			A <- tree$mstates[extantLines,]
 		}
-		
 		
 		#if applicable: update ustate & calculate lstate of new line 
 		newNodes <- which( tree$heights == h1)
@@ -459,7 +448,7 @@ rescale.binaryDatedTree <- function(bdt, ef)
 			#for (alpha in newNodes){
 			if (length(newNodes)==1)
 			{
-				#TODO should rewrite to use helper functions
+				#? should rewrite to use helper functions
 				alpha <- newNodes
 				u <- tree$daughters[alpha,1]
 				v <- tree$daughters[alpha,2]
@@ -477,7 +466,6 @@ rescale.binaryDatedTree <- function(bdt, ef)
 					ratekl <- FklXpuk_Yk %*% vk_Yk + FklXpvk_Yk %*% uk_Yk
 				}
 				
-				
 				tree$coalescentRates[alpha] <- max( sum(ratekl) , 0)
 				if (is.nan(L))
 				{
@@ -485,8 +473,7 @@ rescale.binaryDatedTree <- function(bdt, ef)
 				}
 				tree$coalescentSurvivalProbability[alpha] <- exp(-L)
 				tree$logCoalescentSurvivalProbability[alpha] <- -L
-				if (tree$coalescentSurvivalProbability[alpha]==0) {warning('Zero likelihood. Try setting integrationMethod=adams')}
-#~ if (tree$coalescentSurvivalProbability[alpha]==0) browser()
+				if (tree$coalescentSurvivalProbability[alpha]==0) {warning('Zero likelihood. Try setting integrationMethod=adams'); browser()}
 				if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 				# definitions of alpha state
 				tree$lstates[alpha,] <- ratekl / sum(ratekl)
@@ -497,22 +484,9 @@ rescale.binaryDatedTree <- function(bdt, ef)
 				tree$lnS <- c( tree$lnS, -L )
 				tree$lnr <- c( tree$lnr, log(sum(ratekl)) )
 				tree$ih <- c( tree$ih, h1)
+				
 				# finite size corrections for lines not involved in coalescent
-				{ #
-					p_a     <- tree$lstates[alpha,]
-					p_i_mat <- tree$mstates[extantLines,]
-					A_mat   <- t( matrix( A, nrow=tree$m, ncol=length(extantLines) )  )
-					p_a_mat <- t( matrix(p_a, nrow=tree$m, ncol=length(extantLines)) )
-					rho_mat <- A_mat /  (A_mat - p_i_mat)
-					rterms  <- p_a_mat / (A_mat - p_i_mat)
-					lterms  <- rho_mat %*% p_a
-					lterms <- matrix(lterms, nrow=length(lterms), ncol=tree$m) #
-					new_p_i <- p_i_mat * (lterms - rterms)
-					new_p_i <- new_p_i / rowSums(new_p_i)
-					corrupted <- is.nan(rowSums(new_p_i))
-					new_p_i[corrupted,] <- p_i_mat[corrupted,]
-					tree$mstates[extantLines,] <- new_p_i
-				}
+				tree$mstates <- t( finite_size_correction( tree$lstates[alpha,], A, extantLines, t(tree$mstates) ) )
 			} else if (length(newNodes) > 1){
 				#TODO should check that this is definite polytomy
 				daughters <- setdiff( unique( tree$daughters[newNodes,] ), newNodes)
@@ -539,7 +513,6 @@ rescale.binaryDatedTree <- function(bdt, ef)
 					tree$A <- rbind( tree$A, A)
 					tree$lnS <- c( tree$lnS, -L )
 					tree$lnr <- c( tree$lnr, log(corate) )
-#~ if( is.infinite( log(corate) ) ) browser()
 					tree$ih <- c( tree$ih, h1)
 					# update alpha states
 					tree$lstates[alpha,] <- p_a
@@ -549,11 +522,8 @@ rescale.binaryDatedTree <- function(bdt, ef)
 					tree$coalescentRates[alpha] <- corate
 					tree$coalescentSurvivalProbability[alpha] <- S
 					tree$logCoalescentSurvivalProbability[alpha] <- log(S)
-#~ if (S==0) browser()
 				}
 				tree <- .fsc.extantLines(alpha, extantLines, A, tree )
-#~ print(c(h0, h1, corate , S)) 
-#~ print(daughters)
 			}
 			tree
 		}) -> tree
@@ -646,8 +616,8 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 {
 # bdt : binaryDatedTree instance
 # note births & migrations should be rates in each time step
-	maxtime <- times[length(times)]
-	mintime <- times[1]
+	maxtime <- max(times) 
+	mintime <- min( times )
 	if (!censorAtHeight & (mintime > (bdt$maxSampleTime - bdt$maxHeight))) {
 		warning('Root of tree occurs before earliest time on time axis'); return(-Inf) 
 	} 
@@ -655,20 +625,21 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 		warning('Root of tree occurs before earliest time on time axis'); return(-Inf) 
 	}
 	fgyParms <- list()
-	fgyParms$FGY_RESOLUTION		<- length(times)
+	# make fgy parms for discretized rate functions
+	fgyParms <- list()
+	fgyResolution <- length(times)
+	fgyParms$FGY_RESOLUTION		<- fgyResolution
 	fgyParms$maxHeight				<- bdt$maxHeight #
+	fgyParms$FGY_H_BOUNDARIES 		<- seq(0, bdt$maxHeight, length.out = fgyResolution) 
 	# reverse order (present to past): 
-	fgyParms$F_DISCRETE 			<- lapply(length(births):1, function(k)  births[[k]] )
-	fgyParms$G_DISCRETE 			<- lapply(length(migrations):1, function(k)  migrations[[k]] )
-	fgyParms$Y_DISCRETE 			<- lapply(length(demeSizes):1, function(k)  demeSizes[[k]] )
-	# the following line accounts for any discrepancies between the maximum time axis and the last sample time
-	fgyParms$hoffset = hoffset <- maxtime - bdt$maxSampleTime
-	if (hoffset < 0) stop( 'Time axis does not cover the last sample time' )
-	fgyParms$get.index <- function(h) min(1 + fgyParms$FGY_RESOLUTION * (h + hoffset) / ( maxtime - mintime ), fgyParms$FGY_RESOLUTION )
+	fgyParms$F_DISCRETE 			<- tfgy[[2]] #Fs
+	fgyParms$G_DISCRETE 			<- tfgy[[3]] #Gs
+	fgyParms$Y_DISCRETE 			<- tfgy[[4]] #Ys
+	fgyParms$hoffset = hoffset <- 0
+	fgyParms$get.index <- function(h) min(1 + fgyParms$FGY_RESOLUTION * (h + hoffset) / bdt$maxHeight, fgyParms$FGY_RESOLUTION )
 	fgyParms$F. 					<- function(h) { fgyParms$F_DISCRETE[[fgyParms$get.index(h)]] } #
 	fgyParms$G. 					<- function(h) { fgyParms$G_DISCRETE[[fgyParms$get.index(h)]] }
 	fgyParms$Y. 					<- function(h) { fgyParms$Y_DISCRETE[[fgyParms$get.index(h)]] }
-	fgyParms$FGY_H_BOUNDARIES 		<- bdt$maxSampleTime - times[length(times):1] 
 	
 	if (ncol( bdt$sampleStates ) ==1) 
 	  tree <- .calculate.internal.states.unstructuredModel(bdt, maxHeight=censorAtHeight, globalParms = fgyParms)
@@ -1004,7 +975,7 @@ make.fgy <- function(t0, t1, births, deaths, nonDemeDynamics,  x0,  migrations=N
 		   sapply(1:m, function(l)
 		     parse(text=births[k,l])
 		))
-	if (is.na(migrations))
+	if (length(migrations)==1 & any(is.na(migrations)))
 	{
 		migrations <- matrix('0', nrow=m, ncol=m)
 		colnames(migrations)=rownames(migrations) <- demeNames

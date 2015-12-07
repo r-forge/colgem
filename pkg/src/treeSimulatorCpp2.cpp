@@ -64,6 +64,7 @@ List simulateTreeCpp2(const NumericVector times, const List Fs, const List Gs, c
 	NumericMatrix edge(n+Nnode-ntrees, 2); 
 	NumericVector edge_length(n+Nnode-ntrees, -1.0);
 	NumericVector heights(n+Nnode, -1.0);
+cout << n+Nnode-ntrees << endl; 
 	
 	mat lstates = zeros(n+Nnode, m);
 	mat mstates = zeros(n+Nnode, m);
@@ -74,13 +75,14 @@ List simulateTreeCpp2(const NumericVector times, const List Fs, const List Gs, c
 	int samplesAdded = 0; // counter for terminal branches
 	int edgesAdded = 0;
 	
-	vec  A_Y;
+	vec A_Y;
 	vec Y ;
 	vec A;
 	mat F = zeros(m,m);
 	mat G = zeros(m,m);
 	int it, ist, k, l, nco, inco , i, stateOf_a, stateOf_recip;
 	int u, v, a, z, w;
+	int nextant; 
 	double r, rk, rl, cwk, cwl, twk, twl, h1;
 	bool foundv, foundu;
 	double rsmsi;
@@ -111,10 +113,10 @@ List simulateTreeCpp2(const NumericVector times, const List Fs, const List Gs, c
 	vec m_rs_R;
 	
 	// note times decreasing
-	for(it = 0; it < times.size(); it++)
+	for(it = 0; it < times.size()-1; it++)
 	{
 		t =  times[it];
-		t1 = t - deltat;
+		t1 =times[it+1];  //t - deltat;
 		h = maxSampleTime - t; 
 		h1 = maxSampleTime - t1; 
 
@@ -139,7 +141,7 @@ List simulateTreeCpp2(const NumericVector times, const List Fs, const List Gs, c
 		}
 		R.diag(0) = m_rs_R - diag_xn;
 		// transition prob from row to col
-		Q = expmat( deltat * R); 
+		Q = expmat( (h1 - h) * R); 
 		// renormalise
 		for (k = 0; k < m; k++){
 			Q.row(k) = Q.row(k) / sum(Q.row(k));
@@ -179,7 +181,12 @@ List simulateTreeCpp2(const NumericVector times, const List Fs, const List Gs, c
 		}
 		//~ for (i = internalNodesAdded; i < sortedCoHeights.size(); i++){
 		for (int ico = 0; ico < sortedCoHeights.size(); ico++){
-			//~ if (sortedCoHeights[i] > h1) break;
+			if (sortedCoHeights[ico] > h1) break;
+			// ensure that at least two lines are extant if doing co: 
+			nextant = sum(extant); 
+			if ( nextant < 2 && (sortedCoHeights[ico] > h && sortedCoHeights[ico] <= h1) ){
+				sortedCoHeights[ico] = h1+(h1-h)*1e-3; 
+			}
 			if (sortedCoHeights[ico] > h && sortedCoHeights[ico] <= h1){
 				// find k and l
 				r = R::runif( 0., corate); 
@@ -242,6 +249,7 @@ List simulateTreeCpp2(const NumericVector times, const List Fs, const List Gs, c
 				// do the co
 				if (!foundu || !foundv){
 					// just pick two lines at random; 
+					cout << sum(extant) << endl; 
 					IntegerVector uv =  Rcpp::RcppArmadillo::sample( extantRange , 2, false, as<NumericVector>(extant)) ;
 					u = uv[0];
 					v = uv[1];
@@ -322,5 +330,6 @@ List simulateTreeCpp2(const NumericVector times, const List Fs, const List Gs, c
 	ret["lstates"] = lstates;
 	ret["mstates"] = mstates;
 	ret["heights"] = heights;
+	ret["samplesAdded"] = samplesAdded; 
 	return(ret);
 }

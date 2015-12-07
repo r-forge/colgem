@@ -43,3 +43,19 @@ updateWCpp <- function( W
 	  , vtipsW
 	)
 }
+
+
+#~ sourceCpp_0_update_mstates_arma(SEXP extantLinesSEXP, SEXP QSEXP, SEXP mstatesSEXP) {
+update_mstates_arma <- function( extantLines, Q, mstates)
+{
+	.Call( 'sourceCpp_0_update_mstates_arma', PACKAGE='rcolgem'
+	  ,  extantLines, Q, mstates
+	)
+}
+#~ sourceCpp_0_finite_size_correction(SEXP p_aSEXP, SEXP ASEXP, SEXP extantLinesSEXP, SEXP mstatesSEXP) {
+finite_size_correction <- function( p_a, A, extantLines, mstates)
+{
+	.Call( 'sourceCpp_0_finite_size_correction', PACKAGE='rcolgem'
+	  ,   p_a, A, extantLines, mstates
+	)
+}
