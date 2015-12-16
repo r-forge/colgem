@@ -473,7 +473,7 @@ rescale.binaryDatedTree <- function(bdt, ef)
 				}
 				tree$coalescentSurvivalProbability[alpha] <- exp(-L)
 				tree$logCoalescentSurvivalProbability[alpha] <- -L
-				if (tree$coalescentSurvivalProbability[alpha]==0) {warning('Zero likelihood. Try setting integrationMethod=adams'); browser()}
+				if (tree$coalescentSurvivalProbability[alpha]==0) {warning('Zero likelihood. Try setting integrationMethod=adams');}
 				if (sum(ratekl)==0) {ratekl <- rep(1/tree$m, tree$m) * 1e-6}
 				# definitions of alpha state
 				tree$lstates[alpha,] <- ratekl / sum(ratekl)
@@ -1604,7 +1604,7 @@ simulate.binary.dated.tree.0 <- function(births, deaths, nonDemeDynamics,  t0, x
 						parms$A <- A
 						tryCatch({
 								rates <- calculate.rates( eventTime, parms, globalParms) ; parms$rates <- rates
-							}, error = function(e) browser() )
+							}, error = function(e) stop('Error: rates <- calculate.rates( eventTime, parms, globalParms) ') )
 						lambda <- (sum(rates$lambdaCoalescent) + sum(rates$lambdaMigration) + sum(rates$lambdaInvisibleTransmission))
 						eventTime <- eventTime + rexp(1, rate=lambda)
 						ussh_index <- ussh_index + 1
@@ -1615,7 +1615,7 @@ simulate.binary.dated.tree.0 <- function(births, deaths, nonDemeDynamics,  t0, x
 						FGY_INDEX <- FGY_INDEX+1 ; 
 						tryCatch({
 									rates <- calculate.rates( eventTime, parms, globalParms) ; parms$rates <- rates
-								}, error = function(e) browser() )
+								}, error = function(e) stop('rates <- calculate.rates( eventTime, parms, globalParms) ') )
 						lambda <- (sum(rates$lambdaCoalescent) + sum(rates$lambdaMigration) + sum(rates$lambdaInvisibleTransmission))
 						eventTime <- eventTime + rexp(1, rate=lambda)
 						nextBoundaryTime <- min( nextSampleHeight, globalParms$FGY_H_BOUNDARIES[FGY_INDEX] )
@@ -1650,7 +1650,7 @@ simulate.binary.dated.tree.0 <- function(births, deaths, nonDemeDynamics,  t0, x
 				else if (length(kextant)==1 & length(lextant)==1) { ij <- c(kextant, lextant) }
 				else if (length(kextant)==1) { ij <- c(kextant, sample(lextant, 1)) }
 				else if (length(lextant)==1) { ij <- c(sample(kextant, 1), lextant) }
-				else { browser() }
+				else { stop() }
 			}
 			# set new lineage
 			extant <- c(extant, lineageCounter)
@@ -1908,7 +1908,7 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 		
 		# clean output
 		if (is.nan(L)) {L <- Inf}
-		if (sum(is.nan(Q)) > 0) browser() #Q <- diag(length(A))
+		if (sum(is.nan(Q)) > 0) stop('is.nan(Q)') #Q <- diag(length(A))
 		if (sum(is.nan(A)) > 0) A <- A0
 		
 		#update mstates
@@ -1943,7 +1943,7 @@ if (s!=1) warning('Tree simulator assumes times given in equal increments')
 				astates <- matrix(  pmin(1, t(t(mstates[extantLines,])/.Y ) ),  nrow=nextant  )
 				tryCatch( 
 					{ .lambdamat <- astates %*% .F %*% t(astates) }
-				 , error = function(e) browser())
+				 , error = function(e) stop())
 				diag(.lambdamat) <- 0
 				uivi <- sample.int( nextant^2, size=1, prob=as.vector(.lambdamat) )
 				u_i <- 1 + ((uivi-1) %% nextant)#row
@@ -2117,12 +2117,12 @@ calculate.cluster.size.moments.from.model <- function(sampleTime, sampleStates, 
 				Xi_h		<- o[, 1+1:m]	
 				tryCatch( 
 					Mi_h[i,]<- rowSums( Xi_h   ) / rowSums(A)	# why avg over cols? / total lineages
-							, error = function(e) browser() )
+							, error = function(e) stop() )
 			}		
 			# covariances
 			tryCatch( 					
 				Mij_h[i,j,]	<- rowSums( Xij_h   ) / rowSums(A) 	# timeResolution X 1
-				, error = function(e) browser() )
+				, error = function(e) stop() )
 			Mij_h[j,i,] 	<- Mij_h[i,j,]			
 		}
 	}

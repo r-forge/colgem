@@ -551,6 +551,10 @@ DatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnota
 		phylo$heights[ phylo$edge[i,1] ]
 	})
 	
+	ix <- sort( sampleTimes, decreasing = TRUE, index.return=TRUE)$ix
+	phylo$sortedSampleHeights <- phylo$maxSampleTime - sampleTimes[ix]
+	phylo$sortedSampleStates <- phylo$sampleStates[ix,] 
+	
 	# parents and daughters 
 	phylo$parent = phylo$parents <- sapply(1:(phylo$n+phylo$Nnode), function(u) {
 		i <-  which(phylo$edge[,2]==u)
