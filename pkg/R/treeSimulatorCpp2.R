@@ -11,16 +11,22 @@ require(inline)
 # should return func(theta,  t0, t1, res=1e3) -> list(times, F, G, Y)
 build.demographic.process <- function( births,  nonDemeDynamics=NA,  migrations=NA, deaths=NA,  parameterNames = c(), rcpp = TRUE, sde=FALSE)
 {
+	if (is.vector(births) & length(births) > 1) stop('there must be exactly one expr for births or a square matrix of expressions for births')
+	#~ 	if (is.vector(births)){
+	#~ 		m <- 1
+	#~ 	} else{
+	#~ 		m <- nrow(births)
+	#~ 	}
 	if (is.vector(births) & (length(births)==1) ){
 		bn <- names(births)
-		births <- matrix( c( births, '0', '0', '0'), nrow = 2, ncol = 2)
+		births <- matrix( c( births, '0.', '0.', '0.'), nrow = 2, ncol = 2)
 		colnames(births) = rownames(births) <- c(bn, 'V2')
 	}
 	if (!any(is.na(migrations))){
 		if (is.vector(migrations) & (length(migrations)==1))
 		{
 			bn <- names(migrations)
-			migrations <- matrix( c( migrations, '0', '0', '0'), nrow = 2, ncol = 2)
+			migrations <- matrix( c( migrations, '0.', '0.', '0.'), nrow = 2, ncol = 2)
 			colnames(migrations) = rownames(migrations) <- c(bn,  'V2')
 		}
 	}
@@ -32,7 +38,7 @@ build.demographic.process <- function( births,  nonDemeDynamics=NA,  migrations=
 	mm <- length(nonDemeNames)
 	
 	if (m==2 & length(deaths)==1 & demeNames[2]=='V2'){
-		deaths <- c(deaths, V2='0')
+		deaths <- c(deaths, V2='0.')
 	}
 	if (any(is.na(migrations))){
 		migrations <- matrix('0.', nrow=m, ncol=m)
@@ -225,15 +231,15 @@ ndd.attr("names") = rcnames;
 			solve.demographic.process <- function( theta, x0, t0, t1, res = 1e3, integrationMethod='adams')
 			{ # value : list(times, births, migrations, sizes )
 				# NOTE x0 should be passed here in case there are estimated parameters related to initial conditions
-				if (m == 2 & length(x0) == 1 & demeNames[2]=='V2') x0 <- c(x0, V2 = 0)
+				if (m == 2 & length(x0) == (1+mm) & demeNames[2]=='V2') x0 <- c(x0, V2 = 0)
 				#reorder x0 if necessary
-				if (length(x0)!=m + mm) stop('initial conditons incorrect dimension', x0, m, mm) 
-				if ( sum( !(c(demeNames, nonDemeNames) %in% names(x0)) )  > 0)  stop('initial conditions vector incorrect names', names(x0), demeNames, nonDemeNames)
+				if (length(x0)!=m + mm) stop(paste('initial conditons incorrect dimension', x0, m, mm) )
+				if ( sum( !(c(demeNames, nonDemeNames) %in% names(x0)) )  > 0)  stop(paste('initial conditions vector incorrect names', names(x0), demeNames, nonDemeNames))
 				y0 <- x0[c(demeNames, nonDemeNames)]
 				
 				#reorder theta if necessary
-				if ( length( setdiff( names(theta), parameterNames) ) > 0) stop('Incorrect parameters included: ', setdiff( names(theta), parameterNames) )
-				if ( length( setdiff(  parameterNames, names(theta)) ) > 0) stop('Missing parameters: ', setdiff(  parameterNames, names(theta)) )
+				#if ( length( setdiff( names(theta), parameterNames) ) > 0) stop(paste('Incorrect parameters included: ', setdiff( names(theta), parameterNames) )) #NOTE will allow extraneous parameters
+				if ( length( setdiff(  parameterNames, names(theta)) ) > 0) stop(paste('Missing parameters: ', setdiff(  parameterNames, names(theta)) ))
 				theta <- theta[parameterNames]
 				
 				times <- seq(t0, t1, length.out=res)
