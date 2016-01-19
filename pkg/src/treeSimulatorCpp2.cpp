@@ -64,7 +64,7 @@ List simulateTreeCpp2(const NumericVector times, const List Fs, const List Gs, c
 	NumericMatrix edge(n+Nnode-ntrees, 2); 
 	NumericVector edge_length(n+Nnode-ntrees, -1.0);
 	NumericVector heights(n+Nnode, -1.0);
-cout << n+Nnode-ntrees << endl; 
+//~ cout << n+Nnode-ntrees << endl; 
 	
 	mat lstates = zeros(n+Nnode, m);
 	mat mstates = zeros(n+Nnode, m);
@@ -119,7 +119,6 @@ cout << n+Nnode-ntrees << endl;
 		t1 =times[it+1];  //t - deltat;
 		h = maxSampleTime - t; 
 		h1 = maxSampleTime - t1; 
-
 		
 		F = as<mat>(Fs[it]);
 		G = as<mat>(Gs[it]);
@@ -129,38 +128,65 @@ cout << n+Nnode-ntrees << endl;
 		R = trans( F + G ) ;
 		for ( k = 0; k < Y.size(); k++)
 		{
-			R.col(k) = R.col(k) / (Y);
+			for ( l = 0; l  < Y.size(); l++){
+				if (Y(l) == 0.){
+					R(l,k) = 0.;
+				} else{
+					R(l,k) /= Y(l) ; 
+				}
+			}
+			//~ R.col(k) = R.col(k) / (Y);
 		}
 		R.diag(0) =   zeros<colvec>(Y.size());
 		m_rs_R = -sum( R, 1 );
 		// diagonal correction for coalescent events
 		A_Y = clamp( A / Y, 0., 1. ); 
+		for (k = 0; k < m; k++){
+			if (Y(k)<=0. && A(k)<=0.){
+				A_Y(k) = 0.; 
+			} else if ( Y(k)<=0. && A(k) > 0){
+				A_Y(k) = 1.; 
+			}
+		}
 		vec diag_xn = zeros<colvec>(m); 
 		for (k = 0; k < m; k++){
-			diag_xn[k] = ((double)dot(F.row(k) , A_Y))/ Y[k]; 
+			if (Y(k) > 0.){
+				diag_xn[k] = ((double)dot(F.row(k) , A_Y))/ Y[k]; 
+			}
 		}
 		R.diag(0) = m_rs_R - diag_xn;
 		// transition prob from row to col
 		Q = expmat( (h1 - h) * R); 
+//~ std::cout <<  m_rs_R << std::endl;
+//~ std::cout <<  diag_xn << std::endl;
+//~ std::cout << Y << std::endl;
+//~ std::cout << Q.row(0) << std::endl;
+//~ std::cout << R.row(0) << std::endl;
+//~ Rf_PrintValue(wrap(A_Y)); 
 		// renormalise
 		for (k = 0; k < m; k++){
 			Q.row(k) = Q.row(k) / sum(Q.row(k));
 		}
 		// </transition probs>
-		
+//~ Rf_PrintValue(wrap(Q.row(0)));
+//~ std::cout << std::endl; 
+//~ std::cout << std::endl; 
+//~ throw 9; 
 		
 		//update line states
 		for ( i = 0; i < (n + internalNodesAdded); i++)
 		{
 			if (0!=extant[i]){
 				for ( k = 0; k < m; k++)
-				{
+				{ // TODO probably producing NaN here.. 
 					mstates(i,k) = std::max(0.0, (double)(dot(Q.col(k), mstates.row(i))) );
 				}
 				//renormalise
 				rsmsi  = sum(mstates.row(i));
-				for ( k =0; k < m; k++){
-					mstates(i,k) /= rsmsi;
+				if (rsmsi > 0 ){
+					for ( k =0; k < m; k++){
+						mstates(i,k) /= rsmsi;
+					}
 				}
 			}
 		}

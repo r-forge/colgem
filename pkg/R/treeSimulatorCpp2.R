@@ -719,10 +719,11 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, res = 1e3, step_si
 		class(o) <- 'phylo'
 		o$Nnode <- o$Nnode + 1
 	}
-#~ 	tryCatch({
+	if (any(is.na(o$mstates))) stop('Tree simulation failed: NA in lineage state probabilities.')
+	tryCatch({
 		rownames(sortedSampleStates) <- names(sortedSampleTimes )
-		return(  DatedTree( read.tree(text=write.tree(o)) , sortedSampleTimes, sortedSampleStates) )
-#~ 	}, error = function(e) browser())
+		return(  DatedTree( read.tree(text=write.tree(o)) , sortedSampleTimes, sortedSampleStates, tol = Inf) )
+	}, error = function(e) {print('Unknown error generating tree'); browser()})
 }
 
 
