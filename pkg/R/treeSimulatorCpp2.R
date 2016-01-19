@@ -587,8 +587,8 @@ sim.co.tree <- function(theta, demographic.process.model, x0, t0, sampleTimes, s
 	  , sampleTimes, sampleStates, res = res 
 	)
 }
-sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, res = 1e3, step_size_multiplier= NA)
-{
+sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multiplier= NA)
+{# res = 1e3, 
 	# note sampleStates must be in same order as sampleTimes
 	# note may return multiple trees
 	if (is.na(step_size_multiplier)) step_size_multiplier <- 1
