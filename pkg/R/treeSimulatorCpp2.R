@@ -584,7 +584,7 @@ sim.co.tree <- function(theta, demographic.process.model, x0, t0, sampleTimes, s
 	maxSampleTime <- max(sampleTimes)
 	sim.co.tree.fgy ( 
 	  demographic.process.model( theta, x0, t0, maxSampleTime, res = res, integrationMethod=integrationMethod) 
-	  , sampleTimes, sampleStates, res = res 
+	  , sampleTimes, sampleStates
 	)
 }
 sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multiplier= NA)
@@ -637,9 +637,14 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 	heights <- c()
 	L <- c()
 	coheights <- c()
+# TODO not all coheights added
+# max coheight is short
+# co's added after max coheight; dont seem to correspond
+	cumCos <- c(0)
 	while (ih < length( sortedSampleHeights )){
 		AL <- AL + c(sortedSampleStates[ih, ], 0)
 		if (sortedSampleHeights[ih] > h){
+			A0 <- sum(AL[-length(AL)] )
 			h1 <- sortedSampleHeights[ih+1]
 			datimes <- seq(h, h1, length.out = max(2, ceiling( (h1 - h)/(step_size_multiplier * delta_times) ))  )
 			o <- ode(y = AL, times = datimes, func = dAL, parms = parms,  method = 'adams')
@@ -648,12 +653,16 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 			heights <- c( heights , datimes )
 			
 			dL <- o[nrow(o), ncol(o)] - o[1, ncol(o)]
-			nco <- min( rpois(1,  dL ), n - 1 - length(coheights ) )
+			#nco <- min( rpois(1,  dL ), n - 1 - length(coheights ) )
+			nco <- min( rpois(1,  dL ), ih - 1 - length(coheights ) ) #ih == samples added, nco can not exceed
 			if (nco > 0 ){
 				l <- o[, ncol(o)] - o[1,ncol(o)]
 				l <- l / l[length(l)]
 				coheights <- c( coheights, approx( l, datimes ,xout=runif(nco, 0, 1))$y )
 			}
+			
+			cumCos <- c( cumCos, tail(cumCos,1) + A0 - rowSums( o[ ,2:(ncol(o)-1)] ) )
+			
 			
 			L <- c( L, o[, ncol(o)] )
 			h  <- sortedSampleHeights[ih + 1]
@@ -663,6 +672,7 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 	# last interval 
 	AL <- AL + c(sortedSampleStates[ih, ], 0)
 	ntlA <- sum(AL[1:(length(AL)-1)]) # total A at beginning of last interval
+	A0 <- sum(AL[-length(AL)] )
 	h1 <- maxHeight 
 	datimes <- seq(h, h1, length.out = max(2, ceiling( (h1 - h)/(step_size_multiplier * delta_times) ))  )
 	o <- ode(y = AL, times = datimes, func = dAL, parms = parms,  method = 'adams')
@@ -680,6 +690,9 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 		l <- l / l[length(l)]
 		coheights <- c( coheights, approx( l , datimes , xout= runif(nco, 0, 1) )$y )
 	}
+	
+	cumCos <- c( cumCos, tail(cumCos,1) + A0 - rowSums( o[ ,2:(ncol(o)-1)] ) )
+	cumCos <- cumCos[-1]
 	# /CO HEIGHTS
 	
 	Amat <- sapply( 1:m, function(k ){
@@ -688,6 +701,17 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 	As <- lapply( 1:nrow(Amat), function(i){
 		Amat[i, ]
 	})
+
+if (T)
+{
+AA <- sapply( As, sum )
+#~ plot( times[fgyi], AA )
+
+#~ pco <- (tail(cumCos,1) / (n-1))
+ncos <- floor(tail(cumCos,1))
+coheights <- approx( cumCos / ncos, heights,  xout = runif(ncos, 0, 1))$y
+#~ browser()
+}
 	
 	finalA <- sum(  As[[length(As)]] )
 	if (finalA > 2){
@@ -716,7 +740,6 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 			o$edge <- rbind( o$edge, c(a, ac) )
 			o$edge.length <- c( o$edge.length, maxHeight - o$heights[ac] )
 		}
-		class(o) <- 'phylo'
 		o$Nnode <- o$Nnode + 1
 	}
 	if (any(is.na(o$mstates))) stop('Tree simulation failed: NA in lineage state probabilities.')
