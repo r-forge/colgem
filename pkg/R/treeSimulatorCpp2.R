@@ -710,7 +710,12 @@ AA <- sapply( As, sum )
 #~ pco <- (tail(cumCos,1) / (n-1))
 ncos <- floor(tail(cumCos,1))
 coheights <- approx( cumCos / ncos, heights,  xout = runif(ncos, 0, 1))$y
+#~ coheights1 <- approx( cumCos / ncos, heights,  xout = runif(ncos, 0, 1))$y
+#~ qqplot( coheights, coheights1 )
+#~ abline( a = 0, b= 1)
+#~ print( t.test( coheights, coheights1 ) )
 #~ browser()
+#~ coheights <- coheights1
 }
 	
 	finalA <- sum(  As[[length(As)]] )
