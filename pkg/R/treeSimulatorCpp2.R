@@ -637,9 +637,6 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 	heights <- c()
 	L <- c()
 	coheights <- c()
-# TODO not all coheights added
-# max coheight is short
-# co's added after max coheight; dont seem to correspond
 	cumCos <- c(0)
 	while (ih < length( sortedSampleHeights )){
 		AL <- AL + c(sortedSampleStates[ih, ], 0)
@@ -708,7 +705,7 @@ AA <- sapply( As, sum )
 #~ plot( times[fgyi], AA )
 
 #~ pco <- (tail(cumCos,1) / (n-1))
-ncos <- floor(tail(cumCos,1))
+ncos <- min( n -1 , floor(tail(cumCos,1)) ) #TODO ncos is a deterministic function of population trajectory
 coheights <- approx( cumCos / ncos, heights,  xout = runif(ncos, 0, 1))$y
 #~ coheights1 <- approx( cumCos / ncos, heights,  xout = runif(ncos, 0, 1))$y
 #~ qqplot( coheights, coheights1 )
