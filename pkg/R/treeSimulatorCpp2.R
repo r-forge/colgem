@@ -175,7 +175,9 @@ deaths.attr("names") = rcnames;
 		
 		
 		## non deme dynamics
-		ndd_header <- '
+		if (mm  > 0)
+		{
+			ndd_header <- '
 NumericVector X(x);
 NumericVector PARMS(parms);
 double T = as<double>(t);
@@ -184,23 +186,23 @@ CharacterVector rcnames(nondemenames);
 NumericVector ndd(MM);
 ndd.attr("names") = rcnames;
 '
-		ndd_exprs <- sapply(1:length(nonDemeDynamics), function(i){
-			paste(sep='', 'ndd(', i-1, ') = ', nonDemeDynamics[i] )
-		})
-		ndd_body <- paste(sep='\n', macros, ndd_header
-		  , paste(collapse=';\n', ndd_exprs)
-		  , ';\n return ndd; '
-		)
-		nonDemeDynamics.cpp <<-  cxxfunction(
-			signature(x="numeric"
-				, t="numeric"
-				, mm = "integer"
-				, parms="numeric"
-				, nondemenames="character"),
-			, plugin = 'Rcpp'
-			, body = ndd_body
-		)
-		
+			ndd_exprs <- sapply(1:length(nonDemeDynamics), function(i){
+				paste(sep='', 'ndd(', i-1, ') = ', nonDemeDynamics[i] )
+			})
+			ndd_body <- paste(sep='\n', macros, ndd_header
+			  , paste(collapse=';\n', ndd_exprs)
+			  , ';\n return ndd; '
+			)
+			nonDemeDynamics.cpp <<-  cxxfunction(
+				signature(x="numeric"
+					, t="numeric"
+					, mm = "integer"
+					, parms="numeric"
+					, nondemenames="character"),
+				, plugin = 'Rcpp'
+				, body = ndd_body
+			)
+		} 
 		##
 		
 		if (!sde) #ODE
@@ -210,13 +212,13 @@ ndd.attr("names") = rcnames;
 				.F <- Fcpp(y, t, m, unlist(parms), demeNames)
 				.G <- Gcpp(y, t, m, unlist(parms), demeNames)
 				.deaths <- death.cpp(y, t, m, unlist(parms), demeNames)
-				.ndd <- nonDemeDynamics.cpp( y, t, mm, unlist(parms), nonDemeNames)
 				dxdeme <- setNames(
 				  .F$colsum + .G$colsum - .G$rowsum - .deaths
 				 , demeNames
 				)
 				if (mm > 0)
 				{
+					#.ndd <- nonDemeDynamics.cpp( y, t, mm, unlist(parms), nonDemeNames)
 					dxnondeme <- setNames( 
 					  nonDemeDynamics.cpp( y, t, mm, unlist(parms), nonDemeNames)
 					  , nonDemeNames 
@@ -620,7 +622,7 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 	sortedSampleHeights <- maxSampleTime - sampleTimes[ix]
 	sortedSampleStates <- sampleStates[ix,] 
 	sortedSampleTimes <- sampleTimes[ix]
-	tlabs <- names(sortedSampleTimes)
+	tlabs <- names(sampleTimes)[ix] 
 	if (length(tlabs)==0){
 		tlabs <- 1:n
 		names(sortedSampleTimes) = names(sortedSampleHeights)  <- tlabs
@@ -649,17 +651,7 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 			AL <- o[nrow(o), 2:ncol(o)]
 			heights <- c( heights , datimes )
 			
-			dL <- o[nrow(o), ncol(o)] - o[1, ncol(o)]
-			#nco <- min( rpois(1,  dL ), n - 1 - length(coheights ) )
-			nco <- min( rpois(1,  dL ), ih - 1 - length(coheights ) ) #ih == samples added, nco can not exceed
-			if (nco > 0 ){
-				l <- o[, ncol(o)] - o[1,ncol(o)]
-				l <- l / l[length(l)]
-				coheights <- c( coheights, approx( l, datimes ,xout=runif(nco, 0, 1))$y )
-			}
-			
 			cumCos <- c( cumCos, tail(cumCos,1) + A0 - rowSums( o[ ,2:(ncol(o)-1)] ) )
-			
 			
 			L <- c( L, o[, ncol(o)] )
 			h  <- sortedSampleHeights[ih + 1]
@@ -674,19 +666,7 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 	datimes <- seq(h, h1, length.out = max(2, ceiling( (h1 - h)/(step_size_multiplier * delta_times) ))  )
 	o <- ode(y = AL, times = datimes, func = dAL, parms = parms,  method = 'adams')
 	tAL <- rbind( tAL, o )
-	AL <- o[nrow(o), 2:ncol(o)]
 	heights <- c( heights , datimes )
-	lastA <- sum(AL[1:(length(AL)-1)]) # A at end of last interval
-	if (lastA > 2){
-		nco <- rbinom(1, size = n - 1 - length(coheights), prob = (ntlA - lastA)/(ntlA - 1) )
-	} else{
-		nco <- n - 1 - length(coheights )
-	}
-	if (nco > 0 ){
-		l <- o[, ncol(o)] - o[1,ncol(o)]
-		l <- l / l[length(l)]
-		coheights <- c( coheights, approx( l , datimes , xout= runif(nco, 0, 1) )$y )
-	}
 	
 	cumCos <- c( cumCos, tail(cumCos,1) + A0 - rowSums( o[ ,2:(ncol(o)-1)] ) )
 	cumCos <- cumCos[-1]
@@ -699,27 +679,16 @@ sim.co.tree.fgy <- function(tfgy,  sampleTimes, sampleStates, step_size_multipli
 		Amat[i, ]
 	})
 
-if (T)
-{
-AA <- sapply( As, sum )
-#~ plot( times[fgyi], AA )
-
-#~ pco <- (tail(cumCos,1) / (n-1))
-ncos <- min( n -1 , floor(tail(cumCos,1)) ) #TODO ncos is a deterministic function of population trajectory
-coheights <- approx( cumCos / ncos, heights,  xout = runif(ncos, 0, 1))$y
-#~ coheights1 <- approx( cumCos / ncos, heights,  xout = runif(ncos, 0, 1))$y
-#~ qqplot( coheights, coheights1 )
-#~ abline( a = 0, b= 1)
-#~ print( t.test( coheights, coheights1 ) )
-#~ browser()
-#~ coheights <- coheights1
-}
+	if (T)
+	{
+		ncos <- min( n -1 , floor(tail(cumCos,1)) ) #TODO ncos is a deterministic function of population trajectory
+		coheights <- approx( cumCos / ncos, heights,  xout = runif(ncos, 0, 1))$y
+	}
 	
-	finalA <- sum(  As[[length(As)]] )
+	finalA <- n-1 - ncos #sum(  As[[length(As)]] )
 	if (finalA > 2){
 		warning(paste(sep='', 'Estimated number of extant lineages at earliest time on time axis is ', finalA, ', and sampled lineages are not likely to have a single common ancestor. Root of returned tree will have daughter clades corresponding to simulated trees. '))
 	}
-	
 	#print(date())
 	o <- simulateTreeCpp2( times[fgyi],  Fs[fgyi],  Gs[fgyi],  Ys[fgyi]
 		 , As
