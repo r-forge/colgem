@@ -517,7 +517,6 @@ DatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnota
 	if (any(is.na(rownames(sampleStates)))) stop('sampleStates matrix must have row names of tip labels')
 	if (!any(is.na(sampleStates))) if (!is.matrix( sampleStates)) stop('sampleStates must be a matrix (not a data.frame)')
 	
-	
 	phylo$sampleTimes <- sampleTimes[phylo$tip.label]
 	phylo$sampleStates <- sampleStates[phylo$tip.label, ]
 	if (is.vector(phylo$sampleStates)) phylo$sampleStates <- t(t( phylo$sampleStates))
@@ -558,6 +557,8 @@ DatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnota
 		if (length(i)!=1) return( NA )
 		phylo$heights[ phylo$edge[i,1] ]
 	})
+	
+	phylo$root <- which.max( phylo$heights)
 	
 	ix <- sort( sampleTimes, decreasing = TRUE, index.return=TRUE)$ix
 	phylo$sortedSampleHeights <- phylo$maxSampleTime - sampleTimes[ix]
