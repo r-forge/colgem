@@ -583,6 +583,13 @@ DatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnota
 	
 	## identify order that internal nodes appear in tree (present to past )
 	## definition is complicated since multiple nodes can exist at a given height
+	ndesc <- rep(0, phylo$n + phylo$Nnode )
+	for (iedge in 1:nrow(phylo$edge)){
+		a <- phylo$edge[iedge,1]
+		u <- phylo$edge[iedge,2]
+		ndesc[a] <- ndesc[a] + ndesc[u] + 1
+	}
+	
 	uniqhgts <- sort( unique(phylo$heights) )
 	eventHeights <- rep(NA, (phylo$n+phylo$Nnode) )
 	eventIndicatorNode <- rep(NA, phylo$n + phylo$Nnode )
