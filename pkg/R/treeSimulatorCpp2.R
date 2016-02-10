@@ -517,6 +517,8 @@ DatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnota
 	if (any(is.na(rownames(sampleStates)))) stop('sampleStates matrix must have row names of tip labels')
 	if (!any(is.na(sampleStates))) if (!is.matrix( sampleStates)) stop('sampleStates must be a matrix (not a data.frame)')
 	
+	phylo <- reorder.phylo( phylo, 'postorder' )#
+	
 	phylo$sampleTimes <- sampleTimes[phylo$tip.label]
 	phylo$sampleStates <- sampleStates[phylo$tip.label, ]
 	if (is.vector(phylo$sampleStates)) phylo$sampleStates <- t(t( phylo$sampleStates))
@@ -552,6 +554,7 @@ DatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnota
 	}
 	phylo$heights <- heights
 	phylo$maxHeight <- max(phylo$heights)
+	phylo$heights <- signif( phylo$heights, digits = floor( 1 / phylo$maxHeight /10 )  +  6 ) #
 	phylo$parentheights <- sapply( 1:(n+Nnode), function(u){
 		i <- which( phylo$edge[,2]== u)
 		if (length(i)!=1) return( NA )
@@ -577,6 +580,41 @@ DatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStatesAnnota
 		if (length(uv)==0) uv <- c(NA, NA)
 		uv
 	}))
+	
+	## identify order that internal nodes appear in tree (present to past )
+	## definition is complicated since multiple nodes can exist at a given height
+	uniqhgts <- sort( unique(phylo$heights) )
+	eventHeights <- rep(NA, (phylo$n+phylo$Nnode) )
+	eventIndicatorNode <- rep(NA, phylo$n + phylo$Nnode )
+	events <- rep(NA, phylo$n + phylo$Nnode )
+	hgts2node <- lapply( uniqhgts, function(h) which( phylo$heights==h) )
+	k <- 1
+	l <- 1
+	for (h in uniqhgts){
+		us  <- hgts2node[[k]]
+		if (k < length(hgts2node) | length(us) == 1)
+		{ # do not count events for polytomous root (multiple instances of maxheight)
+			if (length(us) > 1){
+				i_us <- sort( index.return=TRUE, decreasing=FALSE , ndesc[us] )$ix
+				for (u in us[i_us] ){
+					eventHeights[l] <- h
+					events[l] <- ifelse( u <= phylo$n, 0, 1 )
+					eventIndicatorNode[l] <- u
+					l <- l + 1
+				}
+			} else {
+				eventHeights[l] <- h
+				events[l] <- ifelse( us <= phylo$n, 0, 1 )
+				eventIndicatorNode[l] <- us 
+				l <- l + 1
+			}
+		}
+		k <- k + 1
+	}
+	excl <- is.na(eventHeights) | is.na(events) | is.na( eventIndicatorNode )
+	phylo$events <- events[!excl]
+	phylo$eventIndicatorNode <- eventIndicatorNode[!excl]
+	phylo$eventHeights <- eventHeights[!excl]
 	
 	class(phylo) <- c("DatedTree", "phylo")
 	phylo
