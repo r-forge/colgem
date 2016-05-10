@@ -662,6 +662,59 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 }
 
 
+# TODO this should not be need, but the other version of this function seems to assume tfgy is in the namespace, though it isn't by default
+coalescent.log.likelihood.fgy2 <- function(bdt, tfgy, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2, returnTree=FALSE)
+{
+# bdt : binaryDatedTree instance
+# note births & migrations should be rates in each time step
+	times <- tfgy[[1]]
+	maxtime <- max(times) 
+	mintime <- min( times )
+	if (!censorAtHeight & (mintime > (bdt$maxSampleTime - bdt$maxHeight))) {
+		warning('Root of tree occurs before earliest time on time axis'); return(-Inf) 
+	} 
+	if (censorAtHeight & (mintime > (bdt$maxSampleTime - censorAtHeight)) ) {
+		warning('Root of tree occurs before earliest time on time axis'); return(-Inf) 
+	}
+	fgyParms <- list()
+	# make fgy parms for discretized rate functions
+	fgyParms <- list()
+	fgyResolution <- length(times)
+	fgyParms$FGY_RESOLUTION		<- fgyResolution
+	fgyParms$maxHeight				<- bdt$maxHeight #
+	fgyParms$FGY_H_BOUNDARIES 		<- seq(0, bdt$maxHeight, length.out = fgyResolution) 
+	# reverse order (present to past): 
+	fgyParms$F_DISCRETE 			<- tfgy[[2]] #Fs
+	fgyParms$G_DISCRETE 			<- tfgy[[3]] #Gs
+	fgyParms$Y_DISCRETE 			<- tfgy[[4]] #Ys
+	fgyParms$hoffset = hoffset <- 0
+	fgyParms$get.index <- function(h) min(1 + fgyParms$FGY_RESOLUTION * (h + hoffset) / bdt$maxHeight, fgyParms$FGY_RESOLUTION )
+	fgyParms$F. 					<- function(h) { fgyParms$F_DISCRETE[[fgyParms$get.index(h)]] } #
+	fgyParms$G. 					<- function(h) { fgyParms$G_DISCRETE[[fgyParms$get.index(h)]] }
+	fgyParms$Y. 					<- function(h) { fgyParms$Y_DISCRETE[[fgyParms$get.index(h)]] }
+	
+	if (ncol( bdt$sampleStates ) ==1) 
+	  tree <- .calculate.internal.states.unstructuredModel(bdt, maxHeight=censorAtHeight, globalParms = fgyParms)
+	else
+	  tree <- .calculate.internal.states(bdt, fgyParms,  censorAtHeight=censorAtHeight, forgiveAgtY = forgiveAgtY,   INTEGRATIONMETHOD = integrationMethod)
+	
+	i<- (length(tree$sampleTimes)+1):(tree$Nnode + length(tree$tip.label))
+	if (censorAtHeight) { 
+		internalHeights <- tree$heights[(length(tree$tip.label)+1):length(tree$heights)]
+		i <- i[internalHeights <= censorAtHeight] 
+	}
+	ll <- sum( log(tree$coalescentRates[i]) ) + sum( log(tree$coalescentSurvivalProbability[i] ))
+	if (censorAtHeight) { ll<- tree$Nnode *  ll/length(i)}
+	if (is.nan(ll) | is.na(ll) ) ll <- -Inf
+	#~ 	ifelse(returnTree, list( ll, tree), ll) #for debugging
+	if(returnTree)
+		return(list(ll, tree))
+	else
+		return(ll)
+}
+
+
+
 pseudoLogLikelihood0.fgy <-  function(bdt, times, births, migrations, demeSizes, forgiveAgtY=.2, integrationMethod = 'adams', rescaleTree=FALSE, returnRescaleFactor=FALSE, ks_objfun = FALSE)
 {
 # note births & migrations should be rates in each time step
