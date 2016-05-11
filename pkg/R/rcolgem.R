@@ -72,6 +72,8 @@ SIMULATIONTIMERESOLUTION<- 1e+04
 	phylo$parent = phylo$parents <- parent
 	phylo$daughter = phylo$daughters <- daughters
 	phylo$parentheight = phylo$parentheights <- phylo$heights[parent[1:(phylo$Nnode + length(phylo$tip.label))]]
+	phylo$parentheight[is.na(phylo$parentheight)] <- Inf
+	phylo$parentheights[is.na(phylo$parentheights)] <- Inf
 	return(phylo)
 }
 
@@ -145,7 +147,7 @@ binaryDatedTree <- function( phylo, sampleTimes, sampleStates=NULL, sampleStates
 
 .extant.at.height <- function(h, tree)
 {
-	return( which( tree$heights <= h & tree$parentheights > h)  )
+	return( which( tree$heights <= h & tree$parentheight > h)  )
 }
 
 rescale.binaryDatedTree <- function(bdt, ef)
@@ -518,7 +520,7 @@ rescale.binaryDatedTree <- function(bdt, ef)
 					# update alpha states
 					tree$lstates[alpha,] <- p_a
 					tree$mstates[alpha,] <- tree$lstates[alpha,]
-					if ((tree$parentheights[alpha]-tree$heights[alpha]) == 0) tree$ustates[alpha,] <- tree$lstates[alpha,]
+					if ((tree$parentheight[alpha]-tree$heights[alpha]) == 0) tree$ustates[alpha,] <- tree$lstates[alpha,]
 					# likelihood stuff
 					tree$coalescentRates[alpha] <- corate
 					tree$coalescentSurvivalProbability[alpha] <- S
