@@ -285,6 +285,7 @@ rescale.binaryDatedTree <- function(bdt, ef)
 		list(.F=.F, .G=.G, .Y=.Y)
 	}
 	
+	if (is.null( tree$n ) ) tree$n <- length( tree$sampleTimes)
 	if (is.null(tree$m)) tree$m <- nrow( fgyParms$F_DISCRETE[[1]] )
 	if (is.null( tree$lstates)) {
 		tree$lstates <- matrix(0, nrow = tree$n + tree$Nnode, ncol = tree$m)
@@ -662,7 +663,7 @@ coalescent.log.likelihood.fgy <- function(bdt, times, births, migrations, demeSi
 }
 
 
-# TODO this should not be need, but the other version of this function seems to assume tfgy is in the namespace, though it isn't by default
+# TODO this should not be needed, but the other version of this function seems to assume tfgy is in the namespace, though it isn't by default
 coalescent.log.likelihood.fgy2 <- function(bdt, tfgy, integrationMethod = 'rk4',  censorAtHeight=FALSE, forgiveAgtY=.2, returnTree=FALSE)
 {
 # bdt : binaryDatedTree instance
