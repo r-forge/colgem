@@ -291,7 +291,7 @@ rescale.binaryDatedTree <- function(bdt, ef)
 	if (is.null(tree$m)) tree$m <- nrow( fgyParms$F_DISCRETE[[1]] )
 	if (is.null( tree$lstates)) {
 		tree$lstates <- matrix(0, nrow = tree$n + tree$Nnode, ncol = tree$m)
-		tree$lstates[1:n, ] <- tree$sampleStates
+		tree$lstates[1:tree$n, ] <- tree$sampleStates
 	}
 	if (is.null( tree$mstates)) tree$mstates <- tree$lstates
 	if (is.null( tree$ustates)) tree$ustates <- matrix(0, nrow = tree$n + tree$Nnode, ncol = tree$m)
