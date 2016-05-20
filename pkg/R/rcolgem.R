@@ -413,10 +413,13 @@ rescale.binaryDatedTree <- function(bdt, ef)
 			tree$mstates <- nms
 			# NOTE will have slightly different results if recomputing A here, influences fcs: 
 			#A <- colSums(tree$mstates[extantLines,])
+				# renormalise
+			tree$mstates[extantLines,] <- pmax( tree$mstates[extantLines,], 0 )
+			tree$mstates[extantLines,] <- tree$mstates[extantLines,] / rowSums( tree$mstates[extantLines,] )
 		}
 		else{
 			tree$mstates[extantLines,] <- t( t(Q) %*% tree$mstates[extantLines,] )
-			tree$mstates[extantLines,] <- abs(tree$mstates[extantLines,]) / sum(abs(tree$mstates[extantLines,]))
+			tree$mstates[extantLines,] <- pmax(tree$mstates[extantLines,],0) / sum(abs(tree$mstates[extantLines,]))
 			#recalculate A
 			A <- tree$mstates[extantLines,]
 		}
@@ -487,7 +490,7 @@ rescale.binaryDatedTree <- function(bdt, ef)
 				tree$lnS <- c( tree$lnS, -L )
 				tree$lnr <- c( tree$lnr, log(sum(ratekl)) )
 				tree$ih <- c( tree$ih, h1)
-				
+if (sum(ratekl) <= 0) browser()
 				# finite size corrections for lines not involved in coalescent
 				tree$mstates <- t( finite_size_correction( tree$lstates[alpha,], A, extantLines, t(tree$mstates) ) )
 			} else if (length(newNodes) > 1){
@@ -670,6 +673,7 @@ coalescent.log.likelihood.fgy2 <- function(bdt, tfgy, integrationMethod = 'rk4',
 {
 # bdt : binaryDatedTree instance
 # note births & migrations should be rates in each time step
+# NOTE assumes tfgy in order of increasing height and first element corresponds to mst
 	times <- tfgy[[1]]
 	maxtime <- max(times) 
 	mintime <- min( times )
